@@ -10,10 +10,10 @@
 
 // 兜底默认值：构建系统未注入时视为关闭（供开关矩阵二进制直接重编本模块）。
 #ifndef NPC_AGENT_ENABLE_LLM
-#  define NPC_AGENT_ENABLE_LLM 0
+#define NPC_AGENT_ENABLE_LLM 0
 #endif
 #ifndef NPC_AGENT_ENABLE_MEMORY_VECTOR
-#  define NPC_AGENT_ENABLE_MEMORY_VECTOR 0
+#define NPC_AGENT_ENABLE_MEMORY_VECTOR 0
 #endif
 
 #include <optional>
@@ -51,11 +51,10 @@ struct SwitchError {
 // 成功：out 填充 RuntimeFlags，返回 std::nullopt；失败：返回 SwitchError，out 未定义。
 // 复杂度：O(n)（nlohmann 单次解析 + 常数个键遍历），n 为文本长度。
 std::optional<SwitchError> parse_and_validate(std::string_view json_text,
-                                              std::string_view source_name,
-                                              RuntimeFlags& out);
+                                              std::string_view source_name, RuntimeFlags& out);
 
 // 将 SwitchError 格式化为一行可读信息（日志/测试输出用）。
 // 返回字符串长度 O(|file| + |key_path| + |expected| + |actual|)。
 std::string to_string(const SwitchError& err);
 
-}  // namespace npc_agent::config
+} // namespace npc_agent::config

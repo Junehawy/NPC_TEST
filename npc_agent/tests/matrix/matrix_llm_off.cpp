@@ -8,8 +8,8 @@
 #include <string>
 #include <string_view>
 
-using npc_agent::config::RuntimeFlags;
 using npc_agent::config::parse_and_validate;
+using npc_agent::config::RuntimeFlags;
 
 // 编译期开关行守卫：本二进制必须是 {0,1} 行。
 static_assert(!npc_agent::config::CompileFlags::kLlmCompiled);
@@ -27,7 +27,7 @@ RuntimeFlags parse_ok(std::string_view text) {
     return flags;
 }
 
-}  // namespace
+} // namespace
 
 TEST_CASE("[matrix] llm 编译期关闭_运行期启用 → fail-fast 报错") {
     RuntimeFlags flags;

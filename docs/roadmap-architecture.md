@@ -380,16 +380,16 @@ NPC_TEST/
 │   └── roadmap-architecture.md
 ├── npc_agent/                 # 智能体框架（游戏无关，纯库）
 │   ├── include/npc_agent/
-│   │   ├── core/              # agent / agent_system / event_bus / blackboard
+│   │   ├── core/              # agent / agent_system / event / blackboard
 │   │   ├── capabilities/      # 各能力模块
 │   │   ├── interfaces/        # i_world / i_agent_body / icapability / intent / ...
 │   │   ├── llm/               # provider / prompt_builder / gateway
+│   │   ├── testing/           # MockWorld/MockBody/玩具能力（无头测试与示例共用，R6-1）
 │   │   └── config/            # 配置结构 + 三级开关解析 + 矩阵测试数据
 │   ├── src/
 │   └── tests/
 ├── game_adapter/
-│   ├── mock_world/            # 无头模拟世界（含刺激注入脚本）
-│   └── sample_adapter/        # 最小宿主示例
+│   └── sample_adapter/        # 最小宿主示例（无头演示）
 ├── tools/
 │   ├── trace_replay/          # 决策日志录制→回放回归
 │   └── npc_editor/            # （远期）NPC 配置编辑器
@@ -450,14 +450,15 @@ NPC_TEST/
 - **验收**：`ctest` 通过，含至少 1 个开关组合测试。
 - **验收记录（2025-08-15）**：Release（-Werror 零警告）+ Debug/ASan+UBSan（clang-22，环境无 gcc libasan）双构建 ctest 4/4 全绿，25 用例 / 69 断言；门禁 `scripts/check-gate.sh` 全绿；审查报告 `docs/reviews/20250815-阶段0.md`。
 
-### 阶段 1：核心架构（2~3 周）
-- [ ] **接口层 v0.3 冻结评审**（本文件 §3 的契约，冻结后改动走评审流程）
-- [ ] Agent + AgentSystem（IWorld 引用注入）+ 事件总线（scope 分层）+ Blackboard + TickContext
-- [ ] **ICapability + 仲裁管线**（§3.4/§3.5）
-- [ ] 线程安全待处理队列（worker→driver）与回投派发机制
-- [ ] JSON 配置加载 + 三级开关 + 超集约束报错
-- [ ] MockWorld（含刺激注入脚本）+ 序列化接口 `ISerializable` + MemoryEvent schema + AgentSnapshot 组装
+### 阶段 1：核心架构（2~3 周）✅ 完成
+- [x] **接口层 v0.3 冻结评审**（§3 契约落为真实头文件：types / i_world / i_agent_body / intent / icapability / i_llm_provider）
+- [x] Agent + AgentSystem（IWorld 引用注入）+ 事件总线（scope 分层）+ Blackboard + TickContext
+- [x] **ICapability + 仲裁管线**（§3.4/§3.5 四步 + CapabilityFactory 存档恢复）
+- [x] JSON 配置加载 + 三级开关 + 超集约束报错（阶段 0 完成，per-NPC 配置本阶段补齐）
+- [x] MockWorld/MockBody（`npc_agent/testing/`，R6-1）+ 序列化接口 `ISerializable` + MemoryEvent schema + AgentSnapshot 组装
+- [ ] 线程安全待处理队列（worker→driver）——顺延至阶段 5（此前无工作线程，R6-2）
 - **验收**：无头程序中，一个 NPC 读配置、每 tick 收事件、经仲裁产出意图给 MockWorld；读档后黑板+能力模块状态可恢复。
+- **验收记录（2025-08-16）**：Release（-Werror 零警告）+ Debug/ASan+UBSan（gcc，libasan 已装）双构建 ctest 5/5 全绿，36 用例 / 171 断言（新增 22 用例覆盖仲裁四步、事件路由、感知注入、读档恢复、确定性）；冒烟示例 `npc_test` 演示"巡逻 → 枪声 → alarm 兜底问候"全链路；门禁含 clang-format 检查全绿；审查报告 `docs/reviews/20250816-阶段1.md`。
 
 ### 阶段 2：行为系统（3~4 周）
 - [ ] FSM 实现（闲置/巡逻/警戒/对话/战斗）+ BT / Utility AI（同接口，v1 互斥）
@@ -583,5 +584,16 @@ NPC_TEST/
 | R5-7 ISerializable 与 ICapability::to_json 关系未说明 | 补注：ICapability 内嵌契约；根 RNG/黑板/SocialGraph 等非能力状态实现 ISerializable（§7.3） |
 | R5-8 §14 R3-2 行残留 registration_order 表述 | 加注 R4-3 更新指向 |
 | R5-9 目录树 assets 行排版 | 修正：三目录分行并补注释 |
+
+**阶段 1 落码修订（R6，实现澄清，并入 v0.3，不另出版本）**：
+
+| 条目 | 处理 |
+|---|---|
+| R6-1 MockWorld/MockBody 位置 | 依赖方向约束（npc_agent/tests 不得 include game_adapter）→ 无头测试设施移至 `npc_agent/testing/`，game_adapter 仅保留 sample_adapter；§8.2 目录已更新 |
+| R6-2 线程安全待处理队列 | 顺延至阶段 5（阶段 1 无工作线程；随 AsyncToken/LLM 一并实现）；阶段 1 清单已标注 |
+| R6-3 TickContext::rng_seed 落实 | Agent 根 RNG 每 tick 推进派生并注入本地 TickContext；根状态随存档 hex 序列化（§3.7 契约不变） |
+| R6-4 感知注入落实（R5-3） | AgentSystem 按 AgentConfig.perception 代执行 IWorld::sense，结果写入黑板键 `perceived_entities` |
+| R6-5 存档恢复机制 | CapabilityFactory 注册表按能力 id 重建实例；Agent::restore 身体后挂（attach_body）；失败 fail-fast 定位缺失能力 |
+| R6-6 热路径缓冲 | 仲裁候选与全局事件使用复用缓冲（CS-§7.5）；Intent 负载字符串分配列为阶段 6 池化目标 |
 
 **历史对照（v0.1 → v0.2，摘要）**：接口层重构为 IWorld+IAgentBody 双接口、全 POD 契约类型、Intent variant+仲裁、ActionHandle 生命周期、领域动作走 dispatch_game_event、线程契约（主线程接口 + WorldSnapshot/AgentSnapshot 值语义 + 回调入队）、per-agent Agent + 全局 AgentSystem + scope 事件总线、TickContext、感知查询/推送分流、事件/黑板定界、DialogueSession、LLM 输出分级（Text/JsonSchema）、PromptBuilder/LLMGateway 列为模块且网关移入阶段 5、SocialGraph 世界级、EnTT 移除论证、BT 读档重置、Trace 录制回放、开关依赖闭包与超集约束、decision v1 互斥、序列化契约时机修正、阶段 5 拆出 5.5、MVP 减负。完整明细见 git 历史中 v0.2 版本文档的 §14。

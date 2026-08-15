@@ -26,11 +26,9 @@ constexpr std::string_view kKeyMemoryVector = "memory_vector";
 // 校验"对象 + enabled: bool"形式的能力开关（llm）。
 // 含超集约束：编译期未包含却请求启用 → fail-fast 报错。
 // 复杂度：O(1)。
-[[nodiscard]] std::optional<SwitchError> check_object_switch(const json& node,
-                                                            std::string_view key, bool compiled,
-                                                            std::string_view compile_macro,
-                                                            std::string_view file,
-                                                            bool& out_enabled) {
+[[nodiscard]] std::optional<SwitchError>
+check_object_switch(const json& node, std::string_view key, bool compiled,
+                    std::string_view compile_macro, std::string_view file, bool& out_enabled) {
     const std::string path = std::string(kCapabilities) + "." + std::string(key);
     if (!node.is_object()) {
         return make_error(file, path, "对象（{\"enabled\": bool}）", node.type_name());
@@ -53,11 +51,9 @@ constexpr std::string_view kKeyMemoryVector = "memory_vector";
 }
 
 // 校验 bool 简写形式的能力开关（memory_vector）。语义同上。复杂度：O(1)。
-[[nodiscard]] std::optional<SwitchError> check_bool_switch(const json& node,
-                                                           std::string_view key, bool compiled,
-                                                           std::string_view compile_macro,
-                                                           std::string_view file,
-                                                           bool& out_enabled) {
+[[nodiscard]] std::optional<SwitchError>
+check_bool_switch(const json& node, std::string_view key, bool compiled,
+                  std::string_view compile_macro, std::string_view file, bool& out_enabled) {
     const std::string path = std::string(kCapabilities) + "." + std::string(key);
     if (!node.is_boolean()) {
         return make_error(file, path, "布尔值", node.type_name());
@@ -73,11 +69,10 @@ constexpr std::string_view kKeyMemoryVector = "memory_vector";
     return std::nullopt;
 }
 
-}  // namespace
+} // namespace
 
 std::optional<SwitchError> parse_and_validate(std::string_view json_text,
-                                              std::string_view source_name,
-                                              RuntimeFlags& out) {
+                                              std::string_view source_name, RuntimeFlags& out) {
     json root;
     try {
         root = json::parse(json_text);
@@ -98,26 +93,24 @@ std::optional<SwitchError> parse_and_validate(std::string_view json_text,
             }
             for (const auto& [cap_key, cap_value] : value.items()) {
                 if (cap_key == kKeyLlm) {
-                    if (auto err = check_object_switch(cap_value, kKeyLlm,
-                                                       CompileFlags::kLlmCompiled,
-                                                       "NPC_AGENT_ENABLE_LLM", source_name,
-                                                       flags.llm_enabled);
+                    if (auto err = check_object_switch(
+                            cap_value, kKeyLlm, CompileFlags::kLlmCompiled, "NPC_AGENT_ENABLE_LLM",
+                            source_name, flags.llm_enabled);
                         err) {
                         return err;
                     }
                 } else if (cap_key == kKeyMemoryVector) {
                     if (auto err = check_bool_switch(cap_value, kKeyMemoryVector,
                                                      CompileFlags::kMemoryVectorCompiled,
-                                                     "NPC_AGENT_ENABLE_MEMORY_VECTOR",
-                                                     source_name, flags.memory_vector_enabled);
+                                                     "NPC_AGENT_ENABLE_MEMORY_VECTOR", source_name,
+                                                     flags.memory_vector_enabled);
                         err) {
                         return err;
                     }
                 } else {
-                    return make_error(source_name,
-                                      std::string(kCapabilities) + "." + std::string(cap_key),
-                                      "已知能力键（llm / memory_vector）",
-                                      "未知键 '" + cap_key + "'");
+                    return make_error(
+                        source_name, std::string(kCapabilities) + "." + std::string(cap_key),
+                        "已知能力键（llm / memory_vector）", "未知键 '" + cap_key + "'");
                 }
             }
         } else {
@@ -131,8 +124,8 @@ std::optional<SwitchError> parse_and_validate(std::string_view json_text,
 }
 
 std::string to_string(const SwitchError& err) {
-    return "配置错误[" + err.file + "]: " + err.key_path + " —— 期望 " + err.expected +
-           "，实际 " + err.actual;
+    return "配置错误[" + err.file + "]: " + err.key_path + " —— 期望 " + err.expected + "，实际 " +
+           err.actual;
 }
 
-}  // namespace npc_agent::config
+} // namespace npc_agent::config

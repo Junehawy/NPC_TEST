@@ -8,9 +8,9 @@
 #include <string>
 #include <string_view>
 
+using npc_agent::config::parse_and_validate;
 using npc_agent::config::RuntimeFlags;
 using npc_agent::config::SwitchError;
-using npc_agent::config::parse_and_validate;
 using npc_agent::config::to_string;
 
 // 编译期开关行守卫：本二进制必须是 {1,1} 行（RA-§5.2 矩阵测试）。
@@ -38,7 +38,7 @@ SwitchError parse_err(std::string_view text) {
     return *err;
 }
 
-}  // namespace
+} // namespace
 
 TEST_CASE("[config] 空配置 → 全部能力默认关闭") {
     const auto flags = parse_ok(R"({})");
@@ -122,5 +122,5 @@ TEST_CASE("[config] 错误信息 to_string → 含文件/键路径/期望/实际
     REQUIRE(msg.find("test.json") != std::string::npos);
     REQUIRE(msg.find("capabilities.llm.enabled") != std::string::npos);
     REQUIRE(msg.find("布尔值") != std::string::npos);
-    REQUIRE(msg.find("string") != std::string::npos);  // nlohmann type_name("yes") == "string"
+    REQUIRE(msg.find("string") != std::string::npos); // nlohmann type_name("yes") == "string"
 }

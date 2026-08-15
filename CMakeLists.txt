@@ -44,7 +44,14 @@ endif()
 # npc_agent：智能体核心库（游戏无关；禁止 include game_adapter —— 门禁检查）
 # ---------------------------------------------------------------------------
 add_library(npc_agent STATIC
-  npc_agent/src/config/feature_flags.cpp)
+  npc_agent/src/config/feature_flags.cpp
+  npc_agent/src/interfaces/memory_event.cpp
+  npc_agent/src/core/blackboard.cpp
+  npc_agent/src/core/agent_config.cpp
+  npc_agent/src/core/capability_factory.cpp
+  npc_agent/src/core/event.cpp
+  npc_agent/src/core/agent.cpp
+  npc_agent/src/core/agent_system.cpp)
 target_include_directories(npc_agent PUBLIC npc_agent/include)
 target_compile_features(npc_agent PUBLIC cxx_std_20)
 target_compile_definitions(npc_agent PUBLIC
@@ -53,10 +60,21 @@ target_compile_definitions(npc_agent PUBLIC
 target_link_libraries(npc_agent PUBLIC nlohmann_json::nlohmann_json)
 
 # ---------------------------------------------------------------------------
+# npc_agent_testing：无头测试设施（MockWorld/MockBody/玩具能力，R6-1）
+# 测试与示例共用；不参与对外发布。
+# ---------------------------------------------------------------------------
+add_library(npc_agent_testing STATIC
+  npc_agent/src/testing/mock_world.cpp)
+target_include_directories(npc_agent_testing PUBLIC npc_agent/include)
+target_link_libraries(npc_agent_testing PUBLIC npc_agent)
+
+# ---------------------------------------------------------------------------
 # 示例可执行文件（冒烟用）
 # ---------------------------------------------------------------------------
 add_executable(npc_test game_adapter/sample_adapter/main.cpp)
-target_link_libraries(npc_test PRIVATE npc_agent)
+target_link_libraries(npc_test PRIVATE npc_agent npc_agent_testing)
+add_test(NAME npc_test_smoke COMMAND npc_test)
+set_tests_properties(npc_test_smoke PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 # ---------------------------------------------------------------------------
 # 测试（Catch2 + CTest；TS-§1/§2）
@@ -65,8 +83,12 @@ enable_testing()
 
 # 主测试二进制：与 npc_agent 同编译期开关（默认 {llm=1, vec=1} 行）
 add_executable(npc_agent_tests
-  npc_agent/tests/config/test_feature_flags.cpp)
-target_link_libraries(npc_agent_tests PRIVATE npc_agent Catch2::Catch2WithMain)
+  npc_agent/tests/config/test_feature_flags.cpp
+  npc_agent/tests/core/test_blackboard.cpp
+  npc_agent/tests/core/test_agent_config.cpp
+  npc_agent/tests/core/test_arbitration.cpp
+  npc_agent/tests/core/test_agent_system.cpp)
+target_link_libraries(npc_agent_tests PRIVATE npc_agent npc_agent_testing Catch2::Catch2WithMain)
 add_test(NAME npc_agent_tests COMMAND npc_agent_tests)
 
 # 开关矩阵（RA-§5.2 / TS-§3 matrix 行）：编译期 × 运行期组合全覆盖——

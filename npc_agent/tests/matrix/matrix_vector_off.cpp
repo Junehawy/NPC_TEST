@@ -7,8 +7,8 @@
 #include <string>
 #include <string_view>
 
-using npc_agent::config::RuntimeFlags;
 using npc_agent::config::parse_and_validate;
+using npc_agent::config::RuntimeFlags;
 
 // 编译期开关行守卫：本二进制必须是 {1,0} 行。
 static_assert(npc_agent::config::CompileFlags::kLlmCompiled);
@@ -25,12 +25,12 @@ RuntimeFlags parse_ok(std::string_view text) {
     return flags;
 }
 
-}  // namespace
+} // namespace
 
 TEST_CASE("[matrix] memory_vector 编译期关闭_运行期启用 → fail-fast 报错") {
     RuntimeFlags flags;
-    const auto err = parse_and_validate(R"({"capabilities": {"memory_vector": true}})",
-                                        kSource, flags);
+    const auto err =
+        parse_and_validate(R"({"capabilities": {"memory_vector": true}})", kSource, flags);
     REQUIRE(err.has_value());
     REQUIRE(err->key_path == "capabilities.memory_vector");
     REQUIRE(err->expected.find("NPC_AGENT_ENABLE_MEMORY_VECTOR") != std::string::npos);
