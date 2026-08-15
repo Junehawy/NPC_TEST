@@ -33,7 +33,7 @@
 | 类型（类/结构体/枚举） | PascalCase；接口加 `I` 前缀 | `WorldSnapshot`、`IWorld` |
 | enum class 值 | PascalCase | `OutputMode::JsonSchema` |
 | 函数 / 方法 / 局部变量 | snake_case | `register_capability()`、`rng_seed` |
-| 成员变量 | snake_case + 尾缀 `_` | `pending_queue_` |
+| 成员变量 | snake_case + 尾缀 `_`（**例外**：对外暴露的 POD 结构体公开字段不加尾缀） | `pending_queue_`、`RuntimeFlags::llm_enabled` |
 | 编译期常量 | k + PascalCase | `kMaxAgents` |
 | 宏（尽量不用） | `NPC_AGENT_` 前缀全大写 | `NPC_AGENT_ENABLE_LLM` |
 | 布尔 | `is_/has_/can_` 前缀 | `can_reach()` |
@@ -47,7 +47,7 @@
 1. **公共 API 必带文档注释**（头文件内，`//` 行式），固定包含：
    - 用途（做什么）；
    - 前置条件（参数合法性、调用线程）；
-   - **线程契约标签**（接口层强制）：`【驱动线程】`（仅游戏主线程可调）/ `【工作线程安全】`（仅可接触值语义快照）/ `【无契约】`；
+   - **线程契约标签**（接口层强制）：`【驱动线程】`（仅游戏主线程可调）/ `【工作线程安全】`（仅可接触值语义快照）/ `【任意线程】`（纯函数/不可变数据，任何线程可调用）/ `【无契约】`；
    - 所有权/生命周期（谁负责释放、句柄何时失效）；
    - 复杂度（非平凡函数标注 O(...)）。
 2. 实现注释只写**为什么**（算法选择、坑、与架构条款的对应关系），禁止翻译式注释（`i++; // i 自增`）。

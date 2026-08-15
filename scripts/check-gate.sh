@@ -33,7 +33,10 @@ ok "ctest"
 
 echo "== 4/4 clang-format =="
 if command -v clang-format >/dev/null 2>&1; then
-  for f in $(git diff --name-only --diff-filter=ACM -- '*.h' '*.cpp'); do
+  # 检查暂存 + 未暂存的改动文件并集（避免 git add 后漏检）。
+  changed=$( { git diff --cached --name-only --diff-filter=ACM -- '*.h' '*.cpp';
+               git diff --name-only --diff-filter=ACM -- '*.h' '*.cpp'; } | sort -u )
+  for f in $changed; do
     clang-format --dry-run --Werror "$f" >/dev/null 2>&1 \
       || fail "格式不合规: $f（运行 clang-format -i $f）"
   done

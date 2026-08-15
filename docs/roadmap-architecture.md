@@ -444,10 +444,11 @@ NPC_TEST/
 
 ## 10. 分阶段路线图（v0.3 修订）
 
-### 阶段 0：工程底座（1 周）
-- [ ] C++20 + CMake + Ninja（已有）+ Catch2 + nlohmann/json（FetchContent）
-- [ ] **开关矩阵测试骨架**（覆盖编译期开关能力集合：llm / memory.vector）
+### 阶段 0：工程底座（1 周）✅ 完成
+- [x] C++20 + CMake + Ninja（已有）+ Catch2 v3.8.1 + nlohmann/json v3.11.3（FetchContent）
+- [x] **开关矩阵测试骨架**（覆盖编译期开关能力集合：llm / memory.vector；四二进制 × 2×2 组合全覆盖）
 - **验收**：`ctest` 通过，含至少 1 个开关组合测试。
+- **验收记录（2025-08-15）**：Release（-Werror 零警告）+ Debug/ASan+UBSan（clang-22，环境无 gcc libasan）双构建 ctest 4/4 全绿，25 用例 / 69 断言；门禁 `scripts/check-gate.sh` 全绿；审查报告 `docs/reviews/20250815-阶段0.md`。
 
 ### 阶段 1：核心架构（2~3 周）
 - [ ] **接口层 v0.3 冻结评审**（本文件 §3 的契约，冻结后改动走评审流程）

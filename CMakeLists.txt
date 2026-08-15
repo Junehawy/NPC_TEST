@@ -3,6 +3,102 @@ project(NPC_TEST LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-add_executable(npc_test src/main.cpp)
+# ---------------------------------------------------------------------------
+# 三级开关（编译期，RA-§5.2）：编译期开关只对"重依赖/可选第三方库"能力开放。
+# 编译期开关是运行期开关的超集约束：编译期关闭的能力，运行期配置
+# enabled=true 必须 fail-fast 报错（见 config/feature_flags 与矩阵测试）。
+# ---------------------------------------------------------------------------
+option(NPC_AGENT_ENABLE_LLM "编译进 LLM 能力（重依赖：HTTP 客户端/本地推理）" ON)
+option(NPC_AGENT_ENABLE_MEMORY_VECTOR "编译进记忆向量检索能力（外部向量库）" ON)
+option(NPC_AGENT_SANITIZE "以 ASan+UBSan 构建（Debug 下运行测试用）" OFF)
+
+# ---------------------------------------------------------------------------
+# 依赖：Catch2 v3 + nlohmann/json（FetchContent 拉取，版本锁定）
+# ---------------------------------------------------------------------------
+include(FetchContent)
+FetchContent_Declare(
+  Catch2
+  GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+  GIT_TAG        v3.8.1
+  GIT_SHALLOW    TRUE)
+FetchContent_Declare(
+  json
+  GIT_REPOSITORY https://github.com/nlohmann/json.git
+  GIT_TAG        v3.11.3
+  GIT_SHALLOW    TRUE)
+FetchContent_MakeAvailable(Catch2 json)
+
+if(NPC_AGENT_SANITIZE)
+  add_compile_options(-fsanitize=address,undefined -fno-omit-frame-pointer -g)
+  add_link_options(-fsanitize=address,undefined)
+endif()
+
+# ---------------------------------------------------------------------------
+# npc_agent：智能体核心库（游戏无关；禁止 include game_adapter —— 门禁检查）
+# ---------------------------------------------------------------------------
+add_library(npc_agent STATIC
+  npc_agent/src/config/feature_flags.cpp)
+target_include_directories(npc_agent PUBLIC npc_agent/include)
+target_compile_features(npc_agent PUBLIC cxx_std_20)
+target_compile_definitions(npc_agent PUBLIC
+  NPC_AGENT_ENABLE_LLM=$<BOOL:${NPC_AGENT_ENABLE_LLM}>
+  NPC_AGENT_ENABLE_MEMORY_VECTOR=$<BOOL:${NPC_AGENT_ENABLE_MEMORY_VECTOR}>)
+target_link_libraries(npc_agent PUBLIC nlohmann_json::nlohmann_json)
+
+# ---------------------------------------------------------------------------
+# 示例可执行文件（冒烟用）
+# ---------------------------------------------------------------------------
+add_executable(npc_test game_adapter/sample_adapter/main.cpp)
+target_link_libraries(npc_test PRIVATE npc_agent)
+
+# ---------------------------------------------------------------------------
+# 测试（Catch2 + CTest；TS-§1/§2）
+# ---------------------------------------------------------------------------
+enable_testing()
+
+# 主测试二进制：与 npc_agent 同编译期开关（默认 {llm=1, vec=1} 行）
+add_executable(npc_agent_tests
+  npc_agent/tests/config/test_feature_flags.cpp)
+target_link_libraries(npc_agent_tests PRIVATE npc_agent Catch2::Catch2WithMain)
+add_test(NAME npc_agent_tests COMMAND npc_agent_tests)
+
+# 开关矩阵（RA-§5.2 / TS-§3 matrix 行）：编译期 × 运行期组合全覆盖——
+#   npc_agent_tests           覆盖 {llm=1, vec=1}
+#   matrix_llm_off_tests      覆盖 {llm=0, vec=1}
+#   matrix_vector_off_tests   覆盖 {llm=1, vec=0}
+#   matrix_both_off_tests     覆盖 {llm=0, vec=0}
+# 各矩阵二进制以目标级编译定义直接重编 feature_flags.cpp（不链接 npc_agent，
+# 避免与库 PUBLIC 宏冲突）。
+
+add_executable(matrix_llm_off_tests
+  npc_agent/tests/matrix/matrix_llm_off.cpp
+  npc_agent/src/config/feature_flags.cpp)
+target_include_directories(matrix_llm_off_tests PRIVATE npc_agent/include)
+target_compile_definitions(matrix_llm_off_tests PRIVATE
+  NPC_AGENT_ENABLE_LLM=0
+  NPC_AGENT_ENABLE_MEMORY_VECTOR=1)
+target_link_libraries(matrix_llm_off_tests PRIVATE Catch2::Catch2WithMain nlohmann_json::nlohmann_json)
+add_test(NAME matrix_llm_off_tests COMMAND matrix_llm_off_tests)
+
+add_executable(matrix_vector_off_tests
+  npc_agent/tests/matrix/matrix_vector_off.cpp
+  npc_agent/src/config/feature_flags.cpp)
+target_include_directories(matrix_vector_off_tests PRIVATE npc_agent/include)
+target_compile_definitions(matrix_vector_off_tests PRIVATE
+  NPC_AGENT_ENABLE_LLM=1
+  NPC_AGENT_ENABLE_MEMORY_VECTOR=0)
+target_link_libraries(matrix_vector_off_tests PRIVATE Catch2::Catch2WithMain nlohmann_json::nlohmann_json)
+add_test(NAME matrix_vector_off_tests COMMAND matrix_vector_off_tests)
+
+add_executable(matrix_both_off_tests
+  npc_agent/tests/matrix/matrix_both_off.cpp
+  npc_agent/src/config/feature_flags.cpp)
+target_include_directories(matrix_both_off_tests PRIVATE npc_agent/include)
+target_compile_definitions(matrix_both_off_tests PRIVATE
+  NPC_AGENT_ENABLE_LLM=0
+  NPC_AGENT_ENABLE_MEMORY_VECTOR=0)
+target_link_libraries(matrix_both_off_tests PRIVATE Catch2::Catch2WithMain nlohmann_json::nlohmann_json)
+add_test(NAME matrix_both_off_tests COMMAND matrix_both_off_tests)
