@@ -246,12 +246,37 @@ fix_ssh() {
     done
     [ "$changed" -eq 1 ] && info "已恢复 $dir 权限为 root:root ✓" || info "SSH 配置权限正常 ✓"
 
-    # 连通性验证：仓库有 origin 时实测 git 远端
+    # ---- 以真实用户身份验证 GitHub 连通性（root 无密钥，用 root 验证必然失败）----
+    local real_user="${SUDO_USER:-$USER}"
+    local user_home
+    user_home=$(getent passwd "$real_user" | cut -d: -f6)
+    [ -n "$user_home" ] || user_home="$HOME"
+    [ "$real_user" = root ] && user_home=/root
+
+    info "以用户 $real_user 预置 GitHub 主机指纹并验证连通性..."
+    mkdir -p "$user_home/.ssh"
+    # 预置 known_hosts，避免交互式指纹确认卡住（幂等）
+    if ! grep -q '^github.com ' "$user_home/.ssh/known_hosts" 2>/dev/null; then
+        ssh-keyscan -t ed25519,rsa github.com >> "$user_home/.ssh/known_hosts" 2>/dev/null || true
+    fi
+    if [ "$real_user" != root ]; then
+        chown -R "$real_user":"$(id -gn "$real_user")" "$user_home/.ssh"
+    fi
+
+    # 连通性验证：非交互 + 超时，失败给出排查清单
     if [ -d .git ] && git remote -v 2>/dev/null | grep -q origin; then
-        if GIT_TERMINAL_PROMPT=0 git ls-remote origin HEAD >/dev/null 2>&1; then
-            info "git 远端连通性验证通过 ✓"
+        local run_as=(env)
+        [ "$real_user" != root ] && run_as=(sudo -u "$real_user" env)
+        if timeout 25 "${run_as[@]}" \
+            GIT_SSH_COMMAND="ssh -o BatchMode=yes -o ConnectTimeout=10" \
+            GIT_TERMINAL_PROMPT=0 git ls-remote origin HEAD >/dev/null 2>&1; then
+            info "git 远端连通性验证通过 ✓（用户 $real_user）"
         else
-            warn "git 远端仍不可达：请检查 SSH 密钥（~/.ssh）与网络"
+            warn "git 远端仍不可达（用户 $real_user）。请按序检查："
+            warn "  1) 密钥是否存在: ls $user_home/.ssh/（没有则: ssh-keygen -t ed25519）"
+            warn "  2) 公钥是否已添加: https://github.com/settings/keys"
+            warn "  3) 网络受限可改 HTTPS: git remote set-url origin https://github.com/Junehawy/NPC_TEST.git"
+            warn "  排查命令: ssh -vT git@github.com（看失败在哪一步）"
         fi
     fi
 }
@@ -261,13 +286,26 @@ fix_ssh() {
 if [ "$BOOTSTRAP" -eq 1 ]; then
     [ -f CMakeLists.txt ] || die "--bootstrap 需在仓库根目录运行"
     if [ "$DRY_RUN" -eq 1 ]; then
-        info "[dry-run] 将执行: cmake 配置 → 构建(-Werror) → ctest"
+        info "[dry-run] 将执行: cmake 配置（FetchContent 预热）→ 构建(-Werror) → ctest"
+        info "[dry-run] 项目部分将以真实用户 ${SUDO_USER:-$USER} 身份执行（root 构建会污染 build/ 属主）"
     else
-        info "预热项目依赖（FetchContent 拉取 Catch2/nlohmann）并构建..."
-        cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_CXX_FLAGS="-Wall -Wextra -Wpedantic -Werror"
-        cmake --build build
-        (cd build && ctest --output-on-failure)
+        # 项目部分以真实用户身份执行，避免 build/ 目录属主变成 root
+        real_user="${SUDO_USER:-$USER}"
+        run_as=(env)
+        if [ "$(id -u)" -eq 0 ] && [ "$real_user" != root ]; then
+            run_as=(sudo -u "$real_user" env)
+        fi
+        fetch_base="${NPC_AGENT_FETCH_BASE:-https://github.com}"
+        info "预热项目依赖（FetchContent base=$fetch_base，单步超时 900s，克隆有进度输出）..."
+        timeout 900 "${run_as[@]}" cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_FLAGS="-Wall -Wextra -Wpedantic -Werror" \
+            -DNPC_AGENT_FETCH_BASE="$fetch_base" || {
+            warn "cmake 配置失败或超时。网络受限时用镜像重试："
+            warn "  sudo NPC_AGENT_FETCH_BASE=https://ghproxy.net/https://github.com ./scripts/setup-env.sh --bootstrap"
+            exit 1
+        }
+        "${run_as[@]}" cmake --build build || die "构建失败"
+        (cd build && "${run_as[@]}" ctest --output-on-failure) || die "测试失败"
         info "项目构建与测试通过 ✓"
     fi
 fi

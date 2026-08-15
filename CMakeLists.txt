@@ -17,16 +17,20 @@ option(NPC_AGENT_SANITIZE "以 ASan+UBSan 构建（Debug 下运行测试用）" 
 
 # ---------------------------------------------------------------------------
 # 依赖：Catch2 v3 + nlohmann/json（FetchContent 拉取，版本锁定）
+# 网络受限时可用镜像前缀覆盖，例如：
+#   cmake -DNPC_AGENT_FETCH_BASE=https://ghproxy.net/https://github.com ...
 # ---------------------------------------------------------------------------
+set(NPC_AGENT_FETCH_BASE "https://github.com" CACHE STRING "FetchContent 依赖下载基址（可指向镜像）")
+
 include(FetchContent)
 FetchContent_Declare(
   Catch2
-  GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+  GIT_REPOSITORY ${NPC_AGENT_FETCH_BASE}/catchorg/Catch2.git
   GIT_TAG        v3.8.1
   GIT_SHALLOW    TRUE)
 FetchContent_Declare(
   json
-  GIT_REPOSITORY https://github.com/nlohmann/json.git
+  GIT_REPOSITORY ${NPC_AGENT_FETCH_BASE}/nlohmann/json.git
   GIT_TAG        v3.11.3
   GIT_SHALLOW    TRUE)
 FetchContent_MakeAvailable(Catch2 json)
