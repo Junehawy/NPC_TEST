@@ -29,5 +29,6 @@
 
 ## 环境
 
+- 首次环境准备：`sudo ./scripts/setup-env.sh --fix-ssh --bootstrap`（幂等，详见脚本头注释）
 - 构建：`cmake -S . -B build -G Ninja && cmake --build build`（gcc ≥ 13）
 - 测试：Catch2 v3 + ctest；格式化：clang-format（.clang-format 随仓）

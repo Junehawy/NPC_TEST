@@ -13,6 +13,17 @@
 | [docs/reviews/](docs/reviews/) | 每次 push 前的审查报告存档 |
 | [AGENTS.md](AGENTS.md) | AI 编码代理必读（红线 + 强制工作流） |
 
+## 环境安装（一键，幂等）
+
+```bash
+sudo ./scripts/setup-env.sh            # 安装/验证：g++≥13、cmake≥3.28、ninja、git、clang-format/tidy、libasan
+sudo ./scripts/setup-env.sh --fix-ssh  # 修复 /etc/ssh/ssh_config.d 权限（git push 报 Bad owner 时）
+sudo ./scripts/setup-env.sh --bootstrap # 安装后预热依赖并构建 + 测试
+sudo ./scripts/setup-env.sh --dry-run  # 只预览动作，不实际安装
+```
+
+支持 Fedora/RHEL(dnf)、Debian/Ubuntu(apt)、Arch(pacman)、openSUSE(zypper)；可重复执行，已满足项自动跳过。
+
 ## 强制工作流
 
 每个阶段性任务完成、push 之前：
