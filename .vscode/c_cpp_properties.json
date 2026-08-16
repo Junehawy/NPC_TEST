@@ -1,0 +1,23 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "${workspaceFolder}/npc_agent/**",
+                "${workspaceFolder}/game_adapter/**",
+                "${workspaceFolder}/build/_deps/json-src/include",
+                "${workspaceFolder}/build/_deps/catch2-src/src"
+            ],
+            "defines": [
+                "NPC_AGENT_ENABLE_LLM=1",
+                "NPC_AGENT_ENABLE_MEMORY_VECTOR=1"
+            ],
+            "compilerPath": "/usr/bin/g++",
+            "cStandard": "c17",
+            "cppStandard": "c++20",
+            "intelliSenseMode": "linux-gcc-x64",
+            "compileCommands": "${workspaceFolder}/build/compile_commands.json"
+        }
+    ],
+    "version": 4
+}

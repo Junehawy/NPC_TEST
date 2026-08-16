@@ -1,6 +1,5 @@
 build/
 build-*/
-.vscode/
 src/main
 *.o
 *.a

@@ -1,0 +1,10 @@
+{
+    "cmake.buildDirectory": "${workspaceFolder}/build",
+    "cmake.generator": "Ninja",
+    "cmake.configureArgs": ["-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"],
+    "files.associations": {
+        "*.hpp": "cpp",
+        "*.h": "cpp"
+    },
+    "editor.formatOnSave": true
+}
