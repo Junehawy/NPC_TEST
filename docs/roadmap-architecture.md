@@ -389,7 +389,12 @@ NPC_TEST/
 │   ├── src/
 │   └── tests/
 ├── game_adapter/
-│   └── sample_adapter/        # 最小宿主示例（无头演示）
+│   ├── sample_adapter/        # 最小宿主示例（无头演示）
+│   └── godot_demo/            # Godot 2D 集成示例（GDExtension；阶段 6 种子，R7）
+│       ├── src/               # GodotWorld/GodotBody 适配器 + NpcAgentDemoNode
+│       ├── scripts/           # player.gd（GDScript 输入）+ smoke_test.gd（无头冒烟）
+│       ├── scenes/            # main.tscn（根节点 = NpcAgentDemoNode）
+│       └── assets/            # NPC 配置 JSON + 精灵 SVG
 ├── tools/
 │   ├── trace_replay/          # 决策日志录制→回放回归
 │   └── npc_editor/            # （远期）NPC 配置编辑器
@@ -595,5 +600,16 @@ NPC_TEST/
 | R6-4 感知注入落实（R5-3） | AgentSystem 按 AgentConfig.perception 代执行 IWorld::sense，结果写入黑板键 `perceived_entities` |
 | R6-5 存档恢复机制 | CapabilityFactory 注册表按能力 id 重建实例；Agent::restore 身体后挂（attach_body）；失败 fail-fast 定位缺失能力 |
 | R6-6 热路径缓冲 | 仲裁候选与全局事件使用复用缓冲（CS-§7.5）；Intent 负载字符串分配列为阶段 6 池化目标 |
+
+**Godot 集成示例（R7，阶段 6 种子，并入 v0.3，不另出版本）**：
+
+| 条目 | 处理 |
+|---|---|
+| R7-1 GodotWorld/GodotBody 适配器 | `game_adapter/godot_demo/src/` 实现 IWorld/IAgentBody：Node2D 实体投影、持续移动、气泡台词/表情；坐标换算 WorldTransform（1 单位 = 100 px） |
+| R7-2 GDExtension 工程 | godot-cpp `godot-4.5-stable`（FetchContent 锁定，GDExtension 前向兼容 → 4.7.1 运行验证通过）；`npc_agent_godot_demo.gdextension` 以 debug.editor/debug/release 三标签映射同一产物（官方编辑器二进制为 debug+editor 构建） |
+| R7-3 构建隔离 | `NPC_AGENT_BUILD_GODOT_DEMO` 选项 + `godot` preset（build-godot/）：不污染门禁核心构建；示例目标自带 -Werror；godot-cpp 三方头按 SYSTEM 处理 |
+| R7-4 演示语义 | 枪声 → 黑板 alarm（决策器 pending，RA-§3.4）→ 惊吓表情；警戒期内靠近 → 问候台词；3 秒后解除警戒恢复巡逻 |
+| R7-5 验证 | `scripts/smoke_test.gd` 无头冒烟（startle/greet 断言）纳入 check-gate 第 5 步（可选，未装 godot 自动跳过） |
+| R7-6 共享工具 | 意图描述提取至 `npc_agent/testing/intent_desc`（无头示例与 Godot 演示共用，去重） |
 
 **历史对照（v0.1 → v0.2，摘要）**：接口层重构为 IWorld+IAgentBody 双接口、全 POD 契约类型、Intent variant+仲裁、ActionHandle 生命周期、领域动作走 dispatch_game_event、线程契约（主线程接口 + WorldSnapshot/AgentSnapshot 值语义 + 回调入队）、per-agent Agent + 全局 AgentSystem + scope 事件总线、TickContext、感知查询/推送分流、事件/黑板定界、DialogueSession、LLM 输出分级（Text/JsonSchema）、PromptBuilder/LLMGateway 列为模块且网关移入阶段 5、SocialGraph 世界级、EnTT 移除论证、BT 读档重置、Trace 录制回放、开关依赖闭包与超集约束、decision v1 互斥、序列化契约时机修正、阶段 5 拆出 5.5、MVP 减负。完整明细见 git 历史中 v0.2 版本文档的 §14。

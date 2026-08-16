@@ -13,6 +13,7 @@
 #include "npc_agent/core/agent_config.h"
 #include "npc_agent/core/agent_system.h"
 #include "npc_agent/interfaces/intent.h"
+#include "npc_agent/testing/intent_desc.h"
 #include "npc_agent/testing/mock_body.h"
 #include "npc_agent/testing/mock_world.h"
 #include "npc_agent/testing/toy_capabilities.h"
@@ -48,25 +49,7 @@ std::optional<std::string> locate_asset_path(int argc, char** argv) {
     return std::nullopt;
 }
 
-// 意图可读描述（演示输出用）。
-std::string describe(const std::optional<Intent>& intent) {
-    if (!intent.has_value())
-        return "无意图";
-    if (!intent->ready)
-        return "等待异步结果（ready=false）";
-    if (std::holds_alternative<MoveIntent>(intent->payload)) {
-        const auto& m = std::get<MoveIntent>(intent->payload);
-        return "MoveIntent → (" + std::to_string(m.target.x) + ", " + std::to_string(m.target.y) +
-               ")";
-    }
-    if (std::holds_alternative<SayIntent>(intent->payload)) {
-        return "SayIntent → \"" + std::get<SayIntent>(intent->payload).text + "\"";
-    }
-    if (std::holds_alternative<EmoteIntent>(intent->payload)) {
-        return "EmoteIntent → " + std::get<EmoteIntent>(intent->payload).name;
-    }
-    return "GameEventIntent";
-}
+// 意图可读描述由 testing/intent_desc 提供（示例与 Godot 演示共用，避免重复）。
 
 } // namespace
 
@@ -116,7 +99,7 @@ int main(int argc, char** argv) {
         }
         world.advance(0.1);
         system.tick();
-        std::cout << "tick " << i << ": " << describe(agent.last_intent()) << '\n';
+        std::cout << "tick " << i << ": " << describe_intent(agent.last_intent()) << '\n';
     }
 
     // 5. 身体动作日志

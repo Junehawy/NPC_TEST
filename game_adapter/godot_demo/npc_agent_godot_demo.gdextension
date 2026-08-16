@@ -1,0 +1,15 @@
+; NPC 智能体框架 Godot 2D 集成示例的 GDExtension 清单。
+; 编译：cmake --preset godot && cmake --build --preset godot
+; （产物 libnpc_agent_godot_demo.linux.release.x86_64.so 输出到 res://bin/）
+[configuration]
+
+entry_symbol = "npc_agent_godot_demo_library_init"
+compatibility_minimum = "4.5"
+
+[libraries]
+
+; 官方编辑器二进制带 debug+editor 标签；导出模板游戏带 release。
+; 本扩展无调试期特殊行为，三种组合共用同一产物。
+linux.debug.editor.x86_64 = "res://bin/libnpc_agent_godot_demo.linux.release.x86_64.so"
+linux.debug.x86_64 = "res://bin/libnpc_agent_godot_demo.linux.release.x86_64.so"
+linux.release.x86_64 = "res://bin/libnpc_agent_godot_demo.linux.release.x86_64.so"

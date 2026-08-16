@@ -20,7 +20,7 @@
 ## 工作流（强制）
 
 1. 每个阶段性任务完成、push 之前：
-   - 跑 `scripts/check-gate.sh`（依赖方向 → 构建 → ctest → 格式）；
+   - 跑 `scripts/check-gate.sh`（依赖方向 → 构建 → ctest → 格式 → Godot 演示冒烟[可选]）；
    - 按 `docs/review-process.md` §3 清单逐条自查；
    - 写审查报告到 `docs/reviews/<YYYYMMDD>-<阶段>.md`；
    - **审查不通过 = 不 push**。
@@ -32,3 +32,7 @@
 - 首次环境准备：`sudo ./scripts/setup-env.sh --fix-ssh --bootstrap`（幂等，详见脚本头注释）
 - 构建：`cmake -S . -B build -G Ninja && cmake --build build`（gcc ≥ 13）
 - 测试：Catch2 v3 + ctest；格式化：clang-format（.clang-format 随仓）
+- Godot 集成示例（可选，需本机安装 Godot ≥ 4.5）：
+  - 构建：`cmake --preset godot && cmake --build --preset godot`（godot-cpp 首次配置联网拉取）
+  - 运行：`godot --path game_adapter/godot_demo`（WASD 移动、空格枪声）
+  - 无头冒烟：门禁第 5 步自动执行；手动：`godot --headless --path game_adapter/godot_demo --script res://scripts/smoke_test.gd --fixed-fps 60`

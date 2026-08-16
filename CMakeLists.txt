@@ -64,7 +64,8 @@ target_link_libraries(npc_agent PUBLIC nlohmann_json::nlohmann_json)
 # 测试与示例共用；不参与对外发布。
 # ---------------------------------------------------------------------------
 add_library(npc_agent_testing STATIC
-  npc_agent/src/testing/mock_world.cpp)
+  npc_agent/src/testing/mock_world.cpp
+  npc_agent/src/testing/intent_desc.cpp)
 target_include_directories(npc_agent_testing PUBLIC npc_agent/include)
 target_link_libraries(npc_agent_testing PUBLIC npc_agent)
 
@@ -136,3 +137,46 @@ target_compile_definitions(matrix_both_off_tests PRIVATE
   NPC_AGENT_ENABLE_MEMORY_VECTOR=0)
 target_link_libraries(matrix_both_off_tests PRIVATE Catch2::Catch2WithMain nlohmann_json::nlohmann_json)
 add_test(NAME matrix_both_off_tests COMMAND matrix_both_off_tests)
+
+# ---------------------------------------------------------------------------
+# Godot 2D 集成示例（可选，RA-§8.2 game_adapter/godot_demo；阶段 6 种子）
+# 构建：cmake --preset godot && cmake --build --preset godot
+# 运行：godot --path game_adapter/godot_demo
+# 说明：godot-cpp 为第三方依赖，本预设不施加 -Werror（核心库零警告由
+# release/asan 预设门禁保证）；示例自身目标仍带 -Wall -Wextra -Wpedantic -Werror。
+# ---------------------------------------------------------------------------
+option(NPC_AGENT_BUILD_GODOT_DEMO "构建 Godot 2D 集成示例（GDExtension）" OFF)
+
+if(NPC_AGENT_BUILD_GODOT_DEMO)
+  # godot-cpp 4.5-stable：按 GDExtension 前向兼容契约可被 Godot ≥4.5 运行时加载
+  # （本地 4.7.1 验证通过）；SYSTEM 头抑制三方告警，关闭热重载与模板调试特性。
+  set(GODOTCPP_SYSTEM_HEADERS ON CACHE BOOL "" FORCE)
+  set(GODOTCPP_USE_HOT_RELOAD OFF CACHE BOOL "" FORCE)
+  # 动态链接 libstdc++：本机未安装静态库；发布扩展时可按需改为静态（-static-libstdc++）。
+  set(GODOTCPP_USE_STATIC_CPP OFF CACHE BOOL "" FORCE)
+  set(GODOTCPP_TARGET "template_release" CACHE STRING "" FORCE)
+  FetchContent_Declare(
+    godotcpp
+    GIT_REPOSITORY ${NPC_AGENT_FETCH_BASE}/godotengine/godot-cpp.git
+    GIT_TAG        godot-4.5-stable
+    GIT_SHALLOW    TRUE)
+  FetchContent_MakeAvailable(godotcpp)
+
+  # 静态库需链入共享扩展，开启 PIC（仅本预设生效，不影响门禁构建产物）。
+  set_target_properties(npc_agent npc_agent_testing PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+  add_library(npc_agent_godot_demo SHARED
+    game_adapter/godot_demo/src/godot_world.cpp
+    game_adapter/godot_demo/src/godot_body.cpp
+    game_adapter/godot_demo/src/npc_agent_demo_node.cpp
+    game_adapter/godot_demo/src/register_types.cpp
+    game_adapter/godot_demo/src/demo_extension.cpp)
+  target_include_directories(npc_agent_godot_demo PRIVATE game_adapter/godot_demo/src)
+  target_compile_features(npc_agent_godot_demo PRIVATE cxx_std_20)
+  target_link_libraries(npc_agent_godot_demo PRIVATE npc_agent npc_agent_testing godot::cpp)
+  target_compile_options(npc_agent_godot_demo PRIVATE -Wall -Wextra -Wpedantic -Werror)
+  set_target_properties(npc_agent_godot_demo PROPERTIES
+    PREFIX "lib"
+    OUTPUT_NAME "npc_agent_godot_demo.linux.release.x86_64"
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/game_adapter/godot_demo/bin")
+endif()

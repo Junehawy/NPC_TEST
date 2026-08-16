@@ -31,6 +31,18 @@
                 "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
                 "NPC_AGENT_SANITIZE": "ON"
             }
+        },
+        {
+            "name": "godot",
+            "displayName": "Godot 集成示例（build-godot）",
+            "description": "GDExtension 演示构建：不施加 -Werror（godot-cpp 为第三方）；示例自身目标带零警告旗标",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build-godot",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "CMAKE_CXX_COMPILER": "g++",
+                "NPC_AGENT_BUILD_GODOT_DEMO": "ON"
+            }
         }
     ],
     "buildPresets": [
@@ -41,6 +53,10 @@
         {
             "name": "asan",
             "configurePreset": "asan"
+        },
+        {
+            "name": "godot",
+            "configurePreset": "godot"
         }
     ],
     "testPresets": [

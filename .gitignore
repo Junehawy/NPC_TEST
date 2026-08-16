@@ -4,3 +4,12 @@ src/main
 *.o
 *.a
 *.so
+
+# Godot 集成示例：扩展产物与导入缓存不入库
+game_adapter/godot_demo/bin/
+game_adapter/godot_demo/.godot/
+# Godot 4.4+ 的 .import 侧车文件已废弃（导入元数据在 .godot/），不入库
+game_adapter/godot_demo/**/*.import
+# 门禁 Godot 冒烟的沙箱 XDG 重定向目录
+.tmp-godotdata/
+.tmp-godotconfig/
