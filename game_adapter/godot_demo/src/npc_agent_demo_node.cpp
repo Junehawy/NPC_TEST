@@ -3,6 +3,7 @@
 #include <memory>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include <godot_cpp/classes/file_access.hpp>
 #include <godot_cpp/classes/resource_loader.hpp>
@@ -11,6 +12,8 @@
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/variant/utility_functions.hpp>
 
+#include "alert_capability.h"
+#include "guard_patrol_decision.h"
 #include "npc_agent/core/agent_config.h"
 #include "npc_agent/interfaces/intent.h"
 #include "npc_agent/testing/intent_desc.h"
@@ -25,8 +28,7 @@ constexpr const char* kNpcSpritePath = "res://assets/sprites/npc.svg";
 constexpr const char* kPlayerSpritePath = "res://assets/sprites/player.svg";
 constexpr double kAlarmSeconds = 3.0; // 枪声后警戒时长（决策器 pending 窗口）
 
-constexpr const char* kHintText =
-    "WASD 移动 · 空格 枪声刺激（NPC 惊吓并警戒 3 秒）· 靠近 NPC 触发问候";
+constexpr const char* kHintText = "WASD 移动 · 空格 枪声刺激 · 靠近 NPC 触发问候 · 枪声后警戒 3 秒";
 } // namespace
 
 void NpcAgentDemoNode::_bind_methods() {
@@ -35,6 +37,7 @@ void NpcAgentDemoNode::_bind_methods() {
 }
 
 void NpcAgentDemoNode::_ready() {
+    add_to_group("npc_demo"); // GDScript 侧经 group 定位本节点（跨场景嵌套可用）
     build_scene();
     if (!setup_agent()) {
         ready_ = false;
@@ -65,19 +68,21 @@ void NpcAgentDemoNode::inject_gunshot() {
         return;
     const auto source_pos = world_.entity_pos("player").value_or(Vec3{});
     system_.inject_stimulus(Stimulus{"gunshot", source_pos, 1.0f, "player"});
-    // 警戒：黑板置位使 ToyPatrolDecision 返回 pending，能力候选接管仲裁。
+    // 警戒：黑板置位使巡逻决策器返回 pending，能力候选接管仲裁（RA-§3.4）。
     agent_->blackboard().set("alarm", true);
     alarm_time_left_ = kAlarmSeconds;
 }
 
 void NpcAgentDemoNode::build_scene() {
-    // 坐标约定：世界原点位于屏幕中心，1 世界单位 = 100 像素（1280×720 窗口）。
-    const WorldTransform transform{100.0f, godot::Vector2(640.0f, 360.0f)};
+    // 坐标约定：世界原点位于屏幕中心，1 世界单位 = 100 像素（960×540 窗口，
+    // 软渲染环境下更流畅；GPU 机器可改回 1280×720 并同步 origin）。
+    const WorldTransform transform{100.0f, godot::Vector2(480.0f, 270.0f)};
     world_.set_transform(transform);
 
     // NPC：精灵 + 头顶气泡（默认隐藏，台词/表情时限时显示）。
     npc_node_ = memnew(godot::Node2D);
     npc_node_->set_name("Npc");
+    npc_node_->set_position(transform.origin); // 初始站位：世界原点 = 屏幕中心
     add_child(npc_node_);
     auto* npc_sprite = memnew(godot::Sprite2D);
     npc_sprite->set_texture(godot::ResourceLoader::get_singleton()->load(kNpcSpritePath));
@@ -112,12 +117,12 @@ void NpcAgentDemoNode::build_scene() {
     add_child(debug_label_);
     auto* hint_label = memnew(godot::Label);
     hint_label->set_name("HintLabel");
-    hint_label->set_position(godot::Vector2(16.0f, 690.0f));
+    hint_label->set_position(godot::Vector2(16.0f, 510.0f));
     hint_label->set_text(godot::String::utf8(kHintText));
     hint_label->set_modulate(godot::Color(0.7f, 0.7f, 0.7f, 1.0f));
     add_child(hint_label);
 
-    body_.bind(npc_node_, bubble_label_, transform);
+    body_.bind(npc_node_, npc_sprite, bubble_label_, transform);
 }
 
 bool NpcAgentDemoNode::setup_agent() {
@@ -142,13 +147,17 @@ bool NpcAgentDemoNode::setup_agent() {
         return false;
     }
 
-    // 2. 系统装配：世界 → 创建 Agent 挂身体 → 决策器与能力（与无头示例同构）。
+    // 2. 系统装配：世界 → 创建 Agent 挂身体 → 决策器与能力。
+    // 巡逻决策器（菱形回路）在警戒/玩家在场时让位；能力优先级梯次：
+    // 惊吓(5) > 问候(2) > 警戒(1.5)，巡逻(1.0)为权威兜底。
     system_.set_current_world(world_);
     agent_ = &system_.create_agent(std::move(cfg), body_);
-    agent_->set_decision_maker(
-        std::make_unique<testing::ToyPatrolDecision>(Vec3{0.0f, 0.0f, 0.0f}));
+    agent_->set_decision_maker(std::make_unique<GuardPatrolDecision>(
+        std::vector<Vec3>{Vec3{-3.0f, 0.0f, 0.0f}, Vec3{0.0f, -1.5f, 0.0f}, Vec3{3.0f, 0.0f, 0.0f},
+                          Vec3{0.0f, 1.5f, 0.0f}}));
     agent_->register_capability(std::make_unique<testing::ToyGreetCapability>());
     agent_->register_capability(std::make_unique<testing::ToyStartleCapability>());
+    agent_->register_capability(std::make_unique<AlertCapability>());
     return true;
 }
 

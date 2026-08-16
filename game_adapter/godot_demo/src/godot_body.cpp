@@ -10,8 +10,10 @@ constexpr double kSaySeconds = 2.5;     // 台词气泡时长
 constexpr double kEmoteSeconds = 1.2;   // 表情气泡时长
 } // namespace
 
-void GodotBody::bind(godot::Node2D* npc, godot::Label* bubble, WorldTransform transform) {
+void GodotBody::bind(godot::Node2D* npc, godot::Sprite2D* sprite, godot::Label* bubble,
+                     WorldTransform transform) {
     npc_ = npc;
+    sprite_ = sprite;
     bubble_ = bubble;
     transform_ = transform;
 }
@@ -33,11 +35,15 @@ ActionHandle GodotBody::move_to(Vec3 target, float speed) {
 ActionHandle GodotBody::play_emote(const std::string& name) {
     moving_ = false; // 惊吓语义：表情动作打断移动（演示约定）
     show_bubble("❗ " + name, kEmoteSeconds);
+    if (name == "startled")
+        emote_lock_left_ = kEmoteSeconds; // 惊吓展示期内台词不打断
     return ActionHandle{next_handle_++};
 }
 
 ActionHandle GodotBody::say(const DialogueLine& line) {
-    show_bubble(line.text, kSaySeconds);
+    moving_ = false;             // 交谈语义：说话时停下（玩家离开感知范围后巡逻恢复）
+    if (emote_lock_left_ <= 0.0) // 惊吓展示锁生效时跳过，保证表情可见
+        show_bubble(line.text, kSaySeconds);
     return ActionHandle{next_handle_++};
 }
 
@@ -57,15 +63,20 @@ void GodotBody::update_movement(double dt) {
         moving_ = false;
         return;
     }
+    // 朝向：沿移动方向翻转精灵（仅精灵，气泡保持正向可读）。
+    if (std::abs(delta_px.x) > 0.001f)
+        sprite_->set_scale(godot::Vector2(delta_px.x > 0.0f ? 1.0f : -1.0f, 1.0f));
     npc_->set_position(pos + delta_px.normalized() * step);
 }
 
 void GodotBody::update_bubble(double dt) {
-    if (bubble_time_left_ <= 0.0)
-        return;
-    bubble_time_left_ -= dt;
-    if (bubble_time_left_ <= 0.0)
-        bubble_->set_visible(false);
+    if (bubble_time_left_ > 0.0) {
+        bubble_time_left_ -= dt;
+        if (bubble_time_left_ <= 0.0)
+            bubble_->set_visible(false);
+    }
+    if (emote_lock_left_ > 0.0)
+        emote_lock_left_ -= dt;
 }
 
 void GodotBody::show_bubble(const std::string& text, double seconds) {

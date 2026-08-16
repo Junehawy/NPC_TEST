@@ -9,6 +9,7 @@
 
 #include <godot_cpp/classes/label.hpp>
 #include <godot_cpp/classes/node2d.hpp>
+#include <godot_cpp/classes/sprite2d.hpp>
 
 #include "godot_transform.h"
 #include "npc_agent/interfaces/i_agent_body.h"
@@ -18,7 +19,8 @@ namespace npc_agent::adapter::godot_demo {
 class GodotBody final : public IAgentBody {
 public:
     // 绑定场景对象与坐标换算（演示装配期调用）。
-    void bind(godot::Node2D* npc, godot::Label* bubble, WorldTransform transform);
+    void bind(godot::Node2D* npc, godot::Sprite2D* sprite, godot::Label* bubble,
+              WorldTransform transform);
 
     // ---- IAgentBody（RA-§3.3） ----
     BodyState body_state() const override;
@@ -28,19 +30,21 @@ public:
     ActionHandle dispatch_game_event(const GameEvent& e) override; // 示例无领域动作，仅回句柄
 
     // ---- 每帧驱动（由演示节点调用，驱动线程） ----
-    void update_movement(double dt); // 朝目标推进；到达后自动停止
+    void update_movement(double dt); // 朝目标推进并翻转朝向；到达后自动停止
     void update_bubble(double dt);   // 气泡计时到期隐藏
 
 private:
     void show_bubble(const std::string& text, double seconds); // 气泡显示限时
 
     godot::Node2D* npc_ = nullptr;
+    godot::Sprite2D* sprite_ = nullptr; // 朝向翻转目标（仅精灵，气泡不翻转）
     godot::Label* bubble_ = nullptr;
     WorldTransform transform_;
     Vec3 move_target_{};
     float move_speed_ = 0.0f;
     bool moving_ = false;
     double bubble_time_left_ = 0.0;
+    double emote_lock_left_ = 0.0; // 惊吓展示锁：期间台词不打断表情（视觉可见性）
     uint64_t next_handle_ = 1;
 };
 

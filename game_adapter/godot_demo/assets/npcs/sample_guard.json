@@ -1,6 +1,6 @@
 {
   "id": "guard_1",
-  "decision": "toy_patrol",
+  "decision": "guard_patrol",
   "rng_seed": 42,
-  "perception": { "radius": 10.0, "sense_type": "sight" }
+  "perception": { "radius": 2.0, "sense_type": "sight" }
 }

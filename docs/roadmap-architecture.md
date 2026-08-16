@@ -608,8 +608,9 @@ NPC_TEST/
 | R7-1 GodotWorld/GodotBody 适配器 | `game_adapter/godot_demo/src/` 实现 IWorld/IAgentBody：Node2D 实体投影、持续移动、气泡台词/表情；坐标换算 WorldTransform（1 单位 = 100 px） |
 | R7-2 GDExtension 工程 | godot-cpp `godot-4.5-stable`（FetchContent 锁定，GDExtension 前向兼容 → 4.7.1 运行验证通过）；`npc_agent_godot_demo.gdextension` 以 debug.editor/debug/release 三标签映射同一产物（官方编辑器二进制为 debug+editor 构建） |
 | R7-3 构建隔离 | `NPC_AGENT_BUILD_GODOT_DEMO` 选项 + `godot` preset（build-godot/）：不污染门禁核心构建；示例目标自带 -Werror；godot-cpp 三方头按 SYSTEM 处理 |
-| R7-4 演示语义 | 枪声 → 黑板 alarm（决策器 pending，RA-§3.4）→ 惊吓表情；警戒期内靠近 → 问候台词；3 秒后解除警戒恢复巡逻 |
-| R7-5 验证 | `scripts/smoke_test.gd` 无头冒烟（startle/greet 断言）纳入 check-gate 第 5 步（可选，未装 godot 自动跳过） |
+| R7-4 演示语义 | 巡逻决策器 GuardPatrolDecision（waypoint 回路 walk/rest）在警戒或玩家进入感知范围时让位仲裁（RA-§3.4）→ 靠近即问候（感知半径 2 单位）、枪声 → 黑板 alarm → 惊吓表情（1.2s 展示锁）→ 警戒表情（AlertCapability 兜底），3 秒后恢复巡逻 |
+| R7-5 验证 | `scripts/smoke_test.gd` 无头冒烟（巡逻/问候/惊吓/警戒四断言）纳入 check-gate 第 5 步（可选，未装 godot 自动跳过）；`scripts/autopilot.gd` + `scenes/main_autopilot.tscn` 固定时间线自动演示，配合 Movie Maker 录帧做像素级视觉验收 |
 | R7-6 共享工具 | 意图描述提取至 `npc_agent/testing/intent_desc`（无头示例与 Godot 演示共用，去重） |
+| R7-7 效果修复（用户反馈"效果不理想"） | 根因：① NPC 节点未设初始位置（渲染在屏幕左上角）；② 玩具抖动巡逻；③ 问候仅警戒期触发（提示语误导）。修复：初始站位=世界原点；waypoint 回路巡逻；巡逻在玩家可见时让位；窗口 960×540（软渲染流畅）；精灵朝向翻转；玩家边界钳制 |
 
 **历史对照（v0.1 → v0.2，摘要）**：接口层重构为 IWorld+IAgentBody 双接口、全 POD 契约类型、Intent variant+仲裁、ActionHandle 生命周期、领域动作走 dispatch_game_event、线程契约（主线程接口 + WorldSnapshot/AgentSnapshot 值语义 + 回调入队）、per-agent Agent + 全局 AgentSystem + scope 事件总线、TickContext、感知查询/推送分流、事件/黑板定界、DialogueSession、LLM 输出分级（Text/JsonSchema）、PromptBuilder/LLMGateway 列为模块且网关移入阶段 5、SocialGraph 世界级、EnTT 移除论证、BT 读档重置、Trace 录制回放、开关依赖闭包与超集约束、decision v1 互斥、序列化契约时机修正、阶段 5 拆出 5.5、MVP 减负。完整明细见 git 历史中 v0.2 版本文档的 §14。

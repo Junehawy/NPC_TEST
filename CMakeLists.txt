@@ -168,6 +168,7 @@ if(NPC_AGENT_BUILD_GODOT_DEMO)
   add_library(npc_agent_godot_demo SHARED
     game_adapter/godot_demo/src/godot_world.cpp
     game_adapter/godot_demo/src/godot_body.cpp
+    game_adapter/godot_demo/src/guard_patrol_decision.cpp
     game_adapter/godot_demo/src/npc_agent_demo_node.cpp
     game_adapter/godot_demo/src/register_types.cpp
     game_adapter/godot_demo/src/demo_extension.cpp)
