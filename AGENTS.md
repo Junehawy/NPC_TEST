@@ -34,5 +34,7 @@
 - 测试：Catch2 v3 + ctest；格式化：clang-format（.clang-format 随仓）
 - Godot 集成示例（可选，需本机安装 Godot ≥ 4.5）：
   - 构建：`cmake --preset godot && cmake --build --preset godot`（godot-cpp 首次配置联网拉取）
-  - 运行：`godot --path game_adapter/godot_demo`（WASD 移动、空格枪声）
+  - 运行：`./scripts/run-godot-demo.sh`（自动选 Intel 核显硬件渲染，无 /dev/dri 时回退软渲染；
+    启动日志含 `Using Device: Intel - Mesa Intel(R) UHD Graphics` 即核显生效；
+    WASD 移动、空格枪声）
   - 无头冒烟：门禁第 5 步自动执行；手动：`godot --headless --path game_adapter/godot_demo --script res://scripts/smoke_test.gd --fixed-fps 60`

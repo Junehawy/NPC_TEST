@@ -612,5 +612,6 @@ NPC_TEST/
 | R7-5 验证 | `scripts/smoke_test.gd` 无头冒烟（巡逻/问候/惊吓/警戒四断言）纳入 check-gate 第 5 步（可选，未装 godot 自动跳过）；`scripts/autopilot.gd` + `scenes/main_autopilot.tscn` 固定时间线自动演示，配合 Movie Maker 录帧做像素级视觉验收 |
 | R7-6 共享工具 | 意图描述提取至 `npc_agent/testing/intent_desc`（无头示例与 Godot 演示共用，去重） |
 | R7-7 效果修复（用户反馈"效果不理想"） | 根因：① NPC 节点未设初始位置（渲染在屏幕左上角）；② 玩具抖动巡逻；③ 问候仅警戒期触发（提示语误导）。修复：初始站位=世界原点；waypoint 回路巡逻；巡逻在玩家可见时让位；窗口 960×540（软渲染流畅）；精灵朝向翻转；玩家边界钳制 |
+| R7-8 硬件渲染 | 本机 Optimus 双显卡（Intel UHD Graphics + NVIDIA MX250）：`scripts/run-godot-demo.sh` 显式选用核显 iris 驱动，无 /dev/dri 时回退 llvmpipe 并提示；验证日志 `Using Device: Intel - Mesa Intel(R) UHD Graphics`（沙箱环境需完整权限才能看到 /dev/dri，用户终端默认可用） |
 
 **历史对照（v0.1 → v0.2，摘要）**：接口层重构为 IWorld+IAgentBody 双接口、全 POD 契约类型、Intent variant+仲裁、ActionHandle 生命周期、领域动作走 dispatch_game_event、线程契约（主线程接口 + WorldSnapshot/AgentSnapshot 值语义 + 回调入队）、per-agent Agent + 全局 AgentSystem + scope 事件总线、TickContext、感知查询/推送分流、事件/黑板定界、DialogueSession、LLM 输出分级（Text/JsonSchema）、PromptBuilder/LLMGateway 列为模块且网关移入阶段 5、SocialGraph 世界级、EnTT 移除论证、BT 读档重置、Trace 录制回放、开关依赖闭包与超集约束、decision v1 互斥、序列化契约时机修正、阶段 5 拆出 5.5、MVP 减负。完整明细见 git 历史中 v0.2 版本文档的 §14。
