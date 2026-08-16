@@ -43,7 +43,8 @@
             "command": "cmake",
             "args": [
                 "--build",
-                "${workspaceFolder}/build"
+                "--preset",
+                "release"
             ],
             "group": {
                 "kind": "build",
@@ -66,7 +67,7 @@
         },
         {
             "type": "cppbuild",
-            "label": "C/C++: g++ build active file（不推荐：单文件编译缺三方 include）",
+            "label": "C/C++: g++ build active file",
             "command": "/usr/bin/g++",
             "args": [
                 "-fdiagnostics-color=always",
@@ -85,7 +86,7 @@
                 "kind": "build",
                 "isDefault": false
             },
-            "detail": "仅编译单文件、无 CMake include 路径，会报 nlohmann/json.hpp 找不到。请改用 CMake: Build + F5 调试，或终端运行 ./build/npc_test。"
+            "detail": "cpptools 单文件速跑任务：不经 CMake，缺三方 include 路径。本项目请用 CMake: Build + F5，或终端 ./build/npc_test。保留原 label 防止扩展自动再生。"
         }
     ]
 }

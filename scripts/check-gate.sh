@@ -17,10 +17,9 @@ if grep -rn --include='*.h' --include='*.cpp' \
 fi
 ok "依赖方向"
 
-echo "== 2/4 构建（-Werror 零警告）=="
-cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
-      -DCMAKE_CXX_FLAGS="-Wall -Wextra -Wpedantic -Werror" >/dev/null
-cmake --build build >/dev/null
+echo "== 2/4 构建（preset: release，-Werror 零警告）=="
+cmake --preset release >/dev/null
+cmake --build --preset release >/dev/null
 ok "构建"
 
 echo "== 3/4 ctest =="

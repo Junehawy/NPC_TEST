@@ -1,0 +1,22 @@
+[
+    {
+        "name": "GCC (system)",
+        "compilers": {
+            "C": "/usr/bin/gcc",
+            "CXX": "/usr/bin/g++"
+        },
+        "preferredGenerator": {
+            "name": "Ninja"
+        }
+    },
+    {
+        "name": "Clang (system)",
+        "compilers": {
+            "C": "/usr/bin/clang",
+            "CXX": "/usr/bin/clang++"
+        },
+        "preferredGenerator": {
+            "name": "Ninja"
+        }
+    }
+]

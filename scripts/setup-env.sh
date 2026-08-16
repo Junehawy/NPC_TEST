@@ -296,15 +296,14 @@ if [ "$BOOTSTRAP" -eq 1 ]; then
             run_as=(sudo -u "$real_user" env)
         fi
         fetch_base="${NPC_AGENT_FETCH_BASE:-https://github.com}"
-        info "预热项目依赖（FetchContent base=$fetch_base，单步超时 900s，克隆有进度输出）..."
-        timeout 900 "${run_as[@]}" cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_CXX_FLAGS="-Wall -Wextra -Wpedantic -Werror" \
+        info "预热项目依赖（FetchContent base=$fetch_base，单步超时 900s）..."
+        timeout 900 "${run_as[@]}" cmake --preset release \
             -DNPC_AGENT_FETCH_BASE="$fetch_base" || {
             warn "cmake 配置失败或超时。网络受限时用镜像重试："
             warn "  sudo NPC_AGENT_FETCH_BASE=https://ghproxy.net/https://github.com ./scripts/setup-env.sh --bootstrap"
             exit 1
         }
-        "${run_as[@]}" cmake --build build || die "构建失败"
+        "${run_as[@]}" cmake --build --preset release || die "构建失败"
         (cd build && "${run_as[@]}" ctest --output-on-failure) || die "测试失败"
         info "项目构建与测试通过 ✓"
     fi

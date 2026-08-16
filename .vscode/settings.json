@@ -1,4 +1,6 @@
 {
+    "cmake.useCMakePresets": "always",
+    "cmake.configureOnOpen": true,
     "cmake.buildDirectory": "${workspaceFolder}/build",
     "cmake.generator": "Ninja",
     "cmake.configureArgs": ["-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"],
