@@ -1,10 +1,12 @@
 // 阶段 1 无头示例：一个 NPC 读配置 → 每 tick 收事件 → 仲裁产出意图 → 执行到 MockWorld。
-// 运行：仓库根目录执行 ./build/npc_test
+// 运行：任意工作目录执行 npc_test（配置路径自动定位，可用第 1 个命令行参数显式指定）。
 #include <fstream>
 #include <iostream>
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
+#include <vector>
 
 #include <nlohmann/json.hpp>
 
@@ -20,6 +22,31 @@ using namespace npc_agent::core;
 using namespace npc_agent::testing;
 
 namespace {
+
+// 示例配置的仓库内相对路径（相对仓库根目录）。
+constexpr std::string_view kRelativeAssetPath = "assets/npcs/sample_guard.json";
+
+// 定位示例配置（CS-§9 错误处理路径完整），候选按优先级依次探测：
+//   1) 命令行参数显式指定（游戏宿主通常由自身配置目录决定资源路径）；
+//   2) 相对当前工作目录（ctest 冒烟、在仓库根目录直接运行）；
+//   3) 编译期注入的源码根目录兜底（CMake 注入 NPC_TEST_SOURCE_ROOT，
+//      保证从 build/ 等任意目录直接运行也能找到）。
+std::optional<std::string> locate_asset_path(int argc, char** argv) {
+    std::vector<std::string> candidates;
+    if (argc > 1)
+        candidates.emplace_back(argv[1]);
+    candidates.emplace_back(kRelativeAssetPath);
+#ifdef NPC_TEST_SOURCE_ROOT
+    candidates.emplace_back(std::string(NPC_TEST_SOURCE_ROOT) + "/" +
+                            std::string(kRelativeAssetPath));
+#endif
+    for (const auto& candidate : candidates) {
+        std::ifstream probe(candidate);
+        if (probe)
+            return candidate;
+    }
+    return std::nullopt;
+}
 
 // 意图可读描述（演示输出用）。
 std::string describe(const std::optional<Intent>& intent) {
@@ -43,11 +70,17 @@ std::string describe(const std::optional<Intent>& intent) {
 
 } // namespace
 
-int main() {
-    // 1. 读 NPC 配置（文件读取属宿主职责，框架只解析 JSON 值）
-    std::ifstream ifs("assets/npcs/sample_guard.json");
+int main(int argc, char** argv) {
+    // 1. 定位并读取 NPC 配置（文件读取属宿主职责，框架只解析 JSON 值）
+    const auto asset_path = locate_asset_path(argc, argv);
+    if (!asset_path.has_value()) {
+        std::cerr << "无法找到示例配置 " << kRelativeAssetPath
+                  << "，请用第 1 个命令行参数显式指定其路径。\n";
+        return 1;
+    }
+    std::ifstream ifs(*asset_path);
     if (!ifs) {
-        std::cerr << "无法打开 assets/npcs/sample_guard.json（请在仓库根目录运行）\n";
+        std::cerr << "无法打开配置: " << *asset_path << '\n';
         return 1;
     }
     const nlohmann::json cfg_json = nlohmann::json::parse(ifs);

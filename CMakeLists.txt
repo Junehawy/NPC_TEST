@@ -73,8 +73,16 @@ target_link_libraries(npc_agent_testing PUBLIC npc_agent)
 # ---------------------------------------------------------------------------
 add_executable(npc_test game_adapter/sample_adapter/main.cpp)
 target_link_libraries(npc_test PRIVATE npc_agent npc_agent_testing)
+# 注入源码根目录：示例从任意工作目录运行时用它兜底定位 assets/
+# （见 main.cpp locate_asset_path 的第 3 级候选）。
+target_compile_definitions(npc_test PRIVATE
+  NPC_TEST_SOURCE_ROOT="${CMAKE_SOURCE_DIR}")
 add_test(NAME npc_test_smoke COMMAND npc_test)
 set_tests_properties(npc_test_smoke PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+# 回归测试：在构建目录运行（复现"从 build/ 直接运行找不到配置"的问题），
+# 验证源码根目录兜底路径生效。
+add_test(NAME npc_test_anydir_smoke COMMAND npc_test)
+set_tests_properties(npc_test_anydir_smoke PROPERTIES WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
 
 # ---------------------------------------------------------------------------
 # 测试（Catch2 + CTest；TS-§1/§2）
