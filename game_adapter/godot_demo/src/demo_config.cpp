@@ -271,8 +271,8 @@ bool parse_player(const json& obj, PlayerParams& out, std::string& err) {
 }
 
 bool parse_npc(const json& obj, NpcSpec& out, std::string& err) {
-    static constexpr std::array<std::string_view, 8> kKeys = {"name",     "spawn",          "tint",
-                                                              "rng_seed", "shout_when_say", "fsm"};
+    static constexpr std::array<std::string_view, 8> kKeys = {
+        "name", "spawn", "tint", "sprite", "rng_seed", "shout_when_say", "fsm"};
     if (!check_known_keys(obj, "scene.npcs[]", kKeys, err))
         return false;
     if (auto it = obj.find("name"); it != obj.end()) {
@@ -301,6 +301,13 @@ bool parse_npc(const json& obj, NpcSpec& out, std::string& err) {
                 return false;
             }
             out.tint.push_back(v.get<float>());
+        }
+    }
+    if (auto it = obj.find("sprite"); it != obj.end()) {
+        if (!get_string(*it, "scene.npcs[].sprite", out.sprite, err) || out.sprite.empty()) {
+            if (err.empty())
+                err = "demo 配置字段 scene.npcs[].sprite 应为非空字符串";
+            return false;
         }
     }
     if (auto it = obj.find("rng_seed"); it != obj.end()) {
@@ -332,8 +339,8 @@ bool parse_npc(const json& obj, NpcSpec& out, std::string& err) {
 
 bool parse_scene(const json& obj, SceneParams& out, std::string& err) {
     static constexpr std::array<std::string_view, 9> kKeys = {
-        "npc_spawn",     "player_spawn", "scale",     "window_width",
-        "window_height", "show_debug",   "show_hint", "npcs"};
+        "npc_spawn",  "player_spawn", "scale",       "window_width", "window_height",
+        "show_debug", "show_hint",    "map_enabled", "npcs"};
     if (!check_known_keys(obj, "scene", kKeys, err))
         return false;
     if (auto it = obj.find("npc_spawn"); it != obj.end()) {
@@ -377,6 +384,10 @@ bool parse_scene(const json& obj, SceneParams& out, std::string& err) {
     }
     if (auto it = obj.find("show_hint"); it != obj.end()) {
         if (!get_bool(*it, "scene.show_hint", out.show_hint, err))
+            return false;
+    }
+    if (auto it = obj.find("map_enabled"); it != obj.end()) {
+        if (!get_bool(*it, "scene.map_enabled", out.map_enabled, err))
             return false;
     }
     if (auto it = obj.find("npcs"); it != obj.end()) {

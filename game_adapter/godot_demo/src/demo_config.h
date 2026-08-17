@@ -72,9 +72,10 @@ struct FsmDemoParams {
 
 // 单个 NPC 规格（多 NPC 场景模式，R7-11）。
 struct NpcSpec {
-    std::string name;                            // 节点名 + Agent id（场景内唯一）
-    Vec3 spawn{};                                // 出生点（世界坐标）
-    std::vector<float> tint{0.29f, 0.5f, 0.83f}; // 精灵调制色（RGB 0~1）
+    std::string name;                                    // 节点名 + Agent id（场景内唯一）
+    Vec3 spawn{};                                        // 出生点（世界坐标）
+    std::vector<float> tint{0.29f, 0.5f, 0.83f};         // 精灵调制色（RGB 0~1）
+    std::string sprite = "res://assets/sprites/npc.svg"; // 精灵贴图路径（区分造型）
     uint64_t rng_seed = 42;
     bool shout_when_say = false; // 台词含"呼叫支援"时广播 stimulus.shout（宿主声学传播）
     FsmDemoParams fsm;           // 阶段 2 行为（多 NPC 模式强制启用）
@@ -89,6 +90,7 @@ struct SceneParams {
     int window_height = 540;
     bool show_debug = true;    // 调试面板开关
     bool show_hint = true;     // 操作提示开关
+    bool map_enabled = false;  // 装饰地图（地面/道路/建筑/树木；无碰撞，阶段 3 寻路再谈）
     std::vector<NpcSpec> npcs; // 非空 = 多 NPC 模式（覆盖单 NPC 装配，R7-11）
 };
 

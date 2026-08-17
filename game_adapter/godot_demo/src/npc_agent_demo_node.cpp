@@ -7,13 +7,16 @@
 #include <variant>
 #include <vector>
 
+#include <godot_cpp/classes/color_rect.hpp>
 #include <godot_cpp/classes/display_server.hpp>
 #include <godot_cpp/classes/file_access.hpp>
 #include <godot_cpp/classes/os.hpp>
+#include <godot_cpp/classes/polygon2d.hpp>
 #include <godot_cpp/classes/resource_loader.hpp>
 #include <godot_cpp/classes/script.hpp>
 #include <godot_cpp/classes/sprite2d.hpp>
 #include <godot_cpp/core/class_db.hpp>
+#include <godot_cpp/variant/packed_vector2_array.hpp>
 #include <godot_cpp/variant/utility_functions.hpp>
 
 #include "alert_capability.h"
@@ -239,6 +242,9 @@ void NpcAgentDemoNode::build_scene() {
                                          static_cast<float>(cfg_.scene.window_height) / 2.0f)};
     world_.set_transform(transform);
 
+    if (cfg_.scene.map_enabled)
+        draw_map(cfg_.scene.window_width, cfg_.scene.window_height);
+
     if (cfg_.scene.npcs.empty())
         build_single_npc_scene(transform);
     else
@@ -316,9 +322,20 @@ void NpcAgentDemoNode::build_multi_npc_scene(const WorldTransform& transform) {
         npc.node->set_position(transform.to_pixel(spec.spawn));
         add_child(npc.node);
         npc.sprite = memnew(godot::Sprite2D);
-        npc.sprite->set_texture(godot::ResourceLoader::get_singleton()->load(kNpcSpritePath));
+        npc.sprite->set_texture(
+            godot::ResourceLoader::get_singleton()->load(godot::String(spec.sprite.c_str())));
         npc.sprite->set_modulate(godot::Color(spec.tint[0], spec.tint[1], spec.tint[2], 1.0f));
         npc.node->add_child(npc.sprite);
+        // 名牌：常驻小字（造型 + 名牌双重区分，R7-12）。
+        auto* name_label = memnew(godot::Label);
+        name_label->set_position(godot::Vector2(-80.0f, -104.0f));
+        name_label->set_size(godot::Vector2(160.0f, 0.0f));
+        name_label->set_horizontal_alignment(
+            godot::HorizontalAlignment::HORIZONTAL_ALIGNMENT_CENTER);
+        name_label->set_text(godot::String(spec.name.c_str()));
+        name_label->add_theme_font_size_override("font_size", 14);
+        name_label->set_modulate(godot::Color(spec.tint[0], spec.tint[1], spec.tint[2], 1.0f));
+        npc.node->add_child(name_label);
         npc.bubble = memnew(godot::Label);
         npc.bubble->set_position(godot::Vector2(-160.0f, -72.0f));
         npc.bubble->set_size(godot::Vector2(320.0f, 0.0f));
@@ -328,6 +345,72 @@ void NpcAgentDemoNode::build_multi_npc_scene(const WorldTransform& transform) {
         npc.node->add_child(npc.bubble);
         npc.body.bind(npc.node, npc.sprite, npc.bubble, transform, cfg_.body);
         npcs_.push_back(std::move(npc));
+    }
+}
+
+void NpcAgentDemoNode::draw_map(int width, int height) {
+    // 装饰地图（R7-12）：纯视觉分层，无碰撞（碰撞/寻路属阶段 3）。
+    // 建筑与树木布置在边缘/上侧，避开 NPC 巡逻路径（中央与横向路线）。
+    auto* ground = memnew(godot::ColorRect);
+    ground->set_position(godot::Vector2(0.0f, 0.0f));
+    ground->set_size(godot::Vector2(static_cast<float>(width), static_cast<float>(height)));
+    ground->set_color(godot::Color(0.16f, 0.24f, 0.14f, 1.0f)); // 草地
+    add_child(ground);
+
+    auto* road = memnew(godot::ColorRect);
+    road->set_position(godot::Vector2(0.0f, static_cast<float>(height) * 0.62f));
+    road->set_size(godot::Vector2(static_cast<float>(width), static_cast<float>(height) * 0.18f));
+    road->set_color(godot::Color(0.42f, 0.40f, 0.36f, 1.0f)); // 道路
+    add_child(road);
+    auto* road_line = memnew(godot::ColorRect);
+    road_line->set_position(godot::Vector2(0.0f, static_cast<float>(height) * 0.705f));
+    road_line->set_size(godot::Vector2(static_cast<float>(width), 3.0f));
+    road_line->set_color(godot::Color(0.85f, 0.83f, 0.55f, 1.0f)); // 中线
+    add_child(road_line);
+
+    // 建筑（左上/右上/左下/右下 + 中上塔楼）。
+    const struct {
+        float x;
+        float y;
+        float w;
+        float h;
+        godot::Color color;
+    } kBuildings[] = {
+        {40.0f, 50.0f, 140.0f, 120.0f, godot::Color(0.55f, 0.35f, 0.25f, 1.0f)},
+        {700.0f, 40.0f, 180.0f, 110.0f, godot::Color(0.45f, 0.45f, 0.52f, 1.0f)},
+        {60.0f, 380.0f, 150.0f, 100.0f, godot::Color(0.62f, 0.52f, 0.30f, 1.0f)},
+        {760.0f, 400.0f, 140.0f, 90.0f, godot::Color(0.50f, 0.32f, 0.28f, 1.0f)},
+        {420.0f, 55.0f, 110.0f, 80.0f, godot::Color(0.36f, 0.36f, 0.40f, 1.0f)},
+    };
+    for (const auto& b : kBuildings) {
+        auto* building = memnew(godot::ColorRect);
+        building->set_position(godot::Vector2(b.x, b.y));
+        building->set_size(godot::Vector2(b.w, b.h));
+        building->set_color(b.color);
+        add_child(building);
+    }
+
+    // 树木：八边形树冠 + 树桩。
+    const float kTreeX[] = {240.0f, 640.0f, 820.0f, 100.0f, 520.0f};
+    const float kTreeY[] = {90.0f, 110.0f, 150.0f, 475.0f, 470.0f};
+    for (std::size_t i = 0; i < std::size(kTreeX); ++i) {
+        auto* crown = memnew(godot::Polygon2D);
+        godot::PackedVector2Array points;
+        constexpr int kSides = 8;
+        for (int s = 0; s < kSides; ++s) {
+            const double angle = 2.0 * 3.141592653589793 * s / kSides;
+            points.push_back(
+                godot::Vector2(kTreeX[i] + static_cast<float>(std::cos(angle)) * 26.0f,
+                               kTreeY[i] + static_cast<float>(std::sin(angle)) * 26.0f));
+        }
+        crown->set_polygon(points);
+        crown->set_color(godot::Color(0.14f, 0.45f, 0.16f, 1.0f));
+        add_child(crown);
+        auto* trunk = memnew(godot::ColorRect);
+        trunk->set_position(godot::Vector2(kTreeX[i] - 4.0f, kTreeY[i] + 22.0f));
+        trunk->set_size(godot::Vector2(8.0f, 14.0f));
+        trunk->set_color(godot::Color(0.38f, 0.27f, 0.16f, 1.0f));
+        add_child(trunk);
     }
 }
 

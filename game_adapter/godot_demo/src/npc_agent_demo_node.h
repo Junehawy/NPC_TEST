@@ -59,7 +59,8 @@ private:
     void build_scene();                      // 场景树装配（窗口/精灵/气泡/玩家/面板）
     void build_single_npc_scene(const WorldTransform& transform); // 单 NPC 场景
     void build_multi_npc_scene(const WorldTransform& transform);  // 多 NPC 场景（规格表）
-    void update_debug_label();                                    // 调试面板刷新（多 NPC 逐行）
+    void draw_map(int width, int height); // 装饰地图（地面/道路/建筑/树木，R7-12）
+    void update_debug_label();            // 调试面板刷新（多 NPC 逐行）
     void inject_player_flags(core::Agent& agent, float near_distance); // 距离/近距旗标
     void propagate_shouts();                 // 呼叫支援台词 → stimulus.shout（声学传播）
     void log_status(const std::string& msg); // 启动状态输出（控制台）

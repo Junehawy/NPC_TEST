@@ -17,6 +17,7 @@ var gunshot_snapshots: Array[String] = []
 var shout_snapshots: Array[String] = []
 var search_snapshots: Array[String] = []
 var greet_snapshots: Array[String] = []
+var reshot_snapshots: Array[String] = []
 
 func _init() -> void:
 	main = load("res://scenes/main.tscn").instantiate()
@@ -42,7 +43,13 @@ func _process(_delta: float) -> bool:
 	# 阶段 5（搜寻结束 ~8.2s → 回 idle → 玩家近距 → 问候）
 	if frames >= 495 and frames <= 580:
 		greet_snapshots.append(label)
-	if frames == 580:
+	# 阶段 6（二次开枪回归，R7-12）：问候/响应状态必须可被枪声打断——
+	# 守卫重入警戒、平民再次逃窜、支援兵再次隐蔽。
+	if frames == 600:
+		main.inject_gunshot()
+	if frames >= 601 and frames <= 640:
+		reshot_snapshots.append(label)
+	if frames == 640:
 		var ok_patrol := _any_contains(patrol_snapshots, "guard: MoveIntent")
 		var ok_alert := _any_contains(gunshot_snapshots, "guard: EmoteIntent → startled")
 		var ok_flee := _any_contains(gunshot_snapshots, "civilian: MoveIntent → (-4.500000")
@@ -51,14 +58,18 @@ func _process(_delta: float) -> bool:
 		var ok_respond := _any_contains(shout_snapshots, "medic: MoveIntent → (1.000000")
 		var ok_search := _any_contains(search_snapshots, "guard: MoveIntent → (2.200000")
 		var ok_greet := _any_contains(greet_snapshots, "guard: SayIntent → \"你好")
+		var ok_reshot_alert := _any_contains(reshot_snapshots, "guard: EmoteIntent → startled")
+		var ok_reshot_flee := _any_contains(reshot_snapshots, "civilian: MoveIntent → (-4.500000")
+		var ok_reshot_crouch := _any_contains(reshot_snapshots, "medic: EmoteIntent")
 		if ok_patrol and ok_alert and ok_flee and ok_crouch and ok_call and ok_respond \
-				and ok_search and ok_greet:
-			print("[smoke-town] PASS patrol=%s alert=%s flee=%s crouch=%s call=%s respond=%s search=%s greet=%s"
-					% [ok_patrol, ok_alert, ok_flee, ok_crouch, ok_call, ok_respond, ok_search, ok_greet])
+				and ok_search and ok_greet and ok_reshot_alert and ok_reshot_flee \
+				and ok_reshot_crouch:
+			print("[smoke-town] PASS patrol=%s alert=%s flee=%s crouch=%s call=%s respond=%s search=%s greet=%s reshot_alert=%s reshot_flee=%s reshot_crouch=%s"
+					% [ok_patrol, ok_alert, ok_flee, ok_crouch, ok_call, ok_respond, ok_search, ok_greet, ok_reshot_alert, ok_reshot_flee, ok_reshot_crouch])
 			quit(0)
 		else:
-			printerr("[smoke-town] FAIL patrol=%s alert=%s flee=%s crouch=%s call=%s respond=%s search=%s greet=%s"
-					% [ok_patrol, ok_alert, ok_flee, ok_crouch, ok_call, ok_respond, ok_search, ok_greet])
+			printerr("[smoke-town] FAIL patrol=%s alert=%s flee=%s crouch=%s call=%s respond=%s search=%s greet=%s reshot_alert=%s reshot_flee=%s reshot_crouch=%s"
+					% [ok_patrol, ok_alert, ok_flee, ok_crouch, ok_call, ok_respond, ok_search, ok_greet, ok_reshot_alert, ok_reshot_flee, ok_reshot_crouch])
 			printerr("[smoke-town] 当前面板: %s" % [label])
 			quit(1)
 	return false
