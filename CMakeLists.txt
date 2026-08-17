@@ -51,7 +51,12 @@ add_library(npc_agent STATIC
   npc_agent/src/core/capability_factory.cpp
   npc_agent/src/core/event.cpp
   npc_agent/src/core/agent.cpp
-  npc_agent/src/core/agent_system.cpp)
+  npc_agent/src/core/agent_system.cpp
+  npc_agent/src/capabilities/perception_module.cpp
+  npc_agent/src/decision/fsm_decision_maker.cpp
+  npc_agent/src/decision/utility_decision_maker.cpp
+  npc_agent/src/decision/bt_decision_maker.cpp
+  npc_agent/src/tracing/decision_trace.cpp)
 target_include_directories(npc_agent PUBLIC npc_agent/include)
 target_compile_features(npc_agent PUBLIC cxx_std_20)
 target_compile_definitions(npc_agent PUBLIC
@@ -65,7 +70,8 @@ target_link_libraries(npc_agent PUBLIC nlohmann_json::nlohmann_json)
 # ---------------------------------------------------------------------------
 add_library(npc_agent_testing STATIC
   npc_agent/src/testing/mock_world.cpp
-  npc_agent/src/testing/intent_desc.cpp)
+  npc_agent/src/testing/intent_desc.cpp
+  npc_agent/src/testing/acceptance_scenario.cpp)
 target_include_directories(npc_agent_testing PUBLIC npc_agent/include)
 target_link_libraries(npc_agent_testing PUBLIC npc_agent)
 
@@ -96,7 +102,14 @@ add_executable(npc_agent_tests
   npc_agent/tests/core/test_blackboard.cpp
   npc_agent/tests/core/test_agent_config.cpp
   npc_agent/tests/core/test_arbitration.cpp
-  npc_agent/tests/core/test_agent_system.cpp)
+  npc_agent/tests/core/test_agent_system.cpp
+  npc_agent/tests/core/test_fsm.cpp
+  npc_agent/tests/core/test_utility.cpp
+  npc_agent/tests/core/test_bt.cpp
+  npc_agent/tests/core/test_perception_module.cpp
+  npc_agent/tests/core/test_action_lifecycle.cpp
+  npc_agent/tests/core/test_trace.cpp
+  npc_agent/tests/core/test_acceptance_scenario.cpp)
 target_link_libraries(npc_agent_tests PRIVATE npc_agent npc_agent_testing Catch2::Catch2WithMain)
 add_test(NAME npc_agent_tests COMMAND npc_agent_tests)
 
@@ -137,6 +150,12 @@ target_compile_definitions(matrix_both_off_tests PRIVATE
   NPC_AGENT_ENABLE_MEMORY_VECTOR=0)
 target_link_libraries(matrix_both_off_tests PRIVATE Catch2::Catch2WithMain nlohmann_json::nlohmann_json)
 add_test(NAME matrix_both_off_tests COMMAND matrix_both_off_tests)
+
+# ---------------------------------------------------------------------------
+# tools/trace_replay：决策日志录制/回放 CLI（RA 决策表 #22）
+# ---------------------------------------------------------------------------
+add_executable(trace_replay tools/trace_replay/trace_replay.cpp)
+target_link_libraries(trace_replay PRIVATE npc_agent npc_agent_testing)
 
 # ---------------------------------------------------------------------------
 # Godot 2D 集成示例（可选，RA-§8.2 game_adapter/godot_demo；阶段 6 种子）

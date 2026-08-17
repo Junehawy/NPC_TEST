@@ -41,6 +41,12 @@ void Agent::enqueue_private(AgentEvent e) {
     private_queue_.push_back(std::move(e));
 }
 
+void Agent::report_action_result(ActionHandle handle, std::string_view result) {
+    if (result != "completed" && result != "failed" && result != "cancelled")
+        return; // 非法结果值：忽略（编程错误防线，CS-§9）
+    action_results_.push_back(ActionResult{handle, std::string(result)});
+}
+
 void Agent::route_event(const AgentEvent& e) {
     if (decision_maker_ != nullptr)
         decision_maker_->on_event(e);
@@ -48,9 +54,21 @@ void Agent::route_event(const AgentEvent& e) {
         cap->on_event(e);
 }
 
-std::optional<Intent> Agent::tick(const TickContext& tc,
-                                  std::span<const AgentEvent> global_events) {
-    // 1. 事件派发：私有队列先排空（deque::swap O(1)，无分配，CS-§7.5）
+std::optional<Intent> Agent::tick(const TickContext& tc, std::span<const AgentEvent> global_events,
+                                  ArbitrationRecord* record) {
+    // 1. 事件派发：动作结果回投先于私有/全局事件（生命周期事件优先，
+    //    game_time 以本次 tick 输入为准）；私有队列排空用 deque::swap O(1)（CS-§7.5）。
+    if (!action_results_.empty()) {
+        for (const auto& result : action_results_) {
+            AgentEvent e;
+            e.type = "action." + result.result;
+            e.source = config_.id;
+            e.game_time = tc.game_time;
+            e.payload = nlohmann::json{{"handle", result.handle.id}};
+            route_event(e);
+        }
+        action_results_.clear();
+    }
     if (!private_queue_.empty()) {
         std::deque<AgentEvent> pending;
         pending.swap(private_queue_);
@@ -64,13 +82,21 @@ std::optional<Intent> Agent::tick(const TickContext& tc,
     TickContext local = tc;
     local.rng_seed = rng_();
 
+    // 2.5 每 tick 处理钩子（阶段 2，R9）：事件派发后、仲裁前执行；
+    //     感知打包/条件旗标在此刷新，决策器权威期间同样生效。
+    for (const auto& cap : caps_)
+        cap->on_tick(bb_, local);
+
     // 3. 决策器权威意图：ready 意图直接胜出（RA-§3.4 管线第 2 条）；
     //    ready=false 时跳过，由下方模块候选兜底。
     std::optional<Intent> winner;
+    bool dm_won = false;
     if (decision_maker_ != nullptr) {
         auto intent = decision_maker_->propose(bb_, local);
-        if (intent.has_value() && intent->ready)
+        if (intent.has_value() && intent->ready) {
             winner = std::move(intent);
+            dm_won = true;
+        }
     }
 
     // 4. 其余能力候选（scratch_ 复用，每 tick 仅 clear，不分配）
@@ -92,27 +118,54 @@ std::optional<Intent> Agent::tick(const TickContext& tc,
         winner = std::move(scratch_[best].intent);
     }
 
+    // 6. 仲裁明细（阶段 2 trace：仅观察，不参与决策）。
+    if (record != nullptr) {
+        record->decision_maker_id =
+            decision_maker_ != nullptr ? std::string(decision_maker_->id()) : std::string{};
+        record->rng_seed = local.rng_seed;
+        record->winner = winner;
+        record->winner_source = "none";
+        record->winner_capability_id.clear();
+        if (winner.has_value()) {
+            // 决策器权威胜出仅发生在第 3 步命中；否则为候选仲裁胜出。
+            record->winner_source = dm_won ? "decision_maker" : "capability";
+            if (!dm_won && !scratch_.empty()) {
+                for (const auto& candidate : scratch_) {
+                    if (candidate.intent.priority == winner->priority) {
+                        record->winner_capability_id = std::string(candidate.cap->id());
+                        break; // 同分先注册者胜（第 5 步语义）
+                    }
+                }
+            }
+        }
+        record->candidates.clear();
+        for (const auto& candidate : scratch_)
+            record->candidates.emplace_back(std::string(candidate.cap->id()),
+                                            candidate.intent.priority);
+    }
+
     // 缓存供观察/断言。payload 均为小结构（字符串 SSO 覆盖常见文本），
     // 拷贝成本可忽略；如未来引入大文本，将改为共享/池化（阶段 6 评估）。
     last_intent_ = winner;
     return last_intent_;
 }
 
-void Agent::execute(const Intent& intent) {
+ActionHandle Agent::execute(const Intent& intent) {
     assert(body_ != nullptr);
     assert(intent.ready); // ready=false 不可执行（调用方保证，CS-§9）
     const IntentPayload& p = intent.payload;
     if (std::holds_alternative<MoveIntent>(p)) {
         const auto& m = std::get<MoveIntent>(p);
-        body_->move_to(m.target, m.speed);
-    } else if (std::holds_alternative<SayIntent>(p)) {
-        const auto& s = std::get<SayIntent>(p);
-        body_->say(DialogueLine{s.text, s.tone});
-    } else if (std::holds_alternative<EmoteIntent>(p)) {
-        body_->play_emote(std::get<EmoteIntent>(p).name);
-    } else {
-        body_->dispatch_game_event(std::get<GameEventIntent>(p).event);
+        return body_->move_to(m.target, m.speed);
     }
+    if (std::holds_alternative<SayIntent>(p)) {
+        const auto& s = std::get<SayIntent>(p);
+        return body_->say(DialogueLine{s.text, s.tone});
+    }
+    if (std::holds_alternative<EmoteIntent>(p)) {
+        return body_->play_emote(std::get<EmoteIntent>(p).name);
+    }
+    return body_->dispatch_game_event(std::get<GameEventIntent>(p).event);
 }
 
 const std::optional<Intent>& Agent::last_intent() const {

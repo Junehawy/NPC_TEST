@@ -16,6 +16,10 @@ void AgentSystem::set_capability_factory(const CapabilityFactory* factory) {
     factory_ = factory;
 }
 
+void AgentSystem::set_trace(tracing::DecisionTrace* trace) {
+    trace_ = trace;
+}
+
 void AgentSystem::tick() {
     if (world_ == nullptr)
         return;
@@ -51,9 +55,30 @@ void AgentSystem::tick() {
         agent->update_snapshot(std::move(snap));
 
         // 决策 → 执行（ready=false 的意图不执行，由决策器内部兜底语义处理）
-        const auto intent = agent->tick(tc, global_scratch_);
+        ArbitrationRecord record;
+        const auto intent = agent->tick(tc, global_scratch_, &record);
+        ActionHandle handle;
         if (intent.has_value() && intent->ready)
-            agent->execute(*intent);
+            handle = agent->execute(*intent);
+
+        // 决策日志 v1（R8 字段）：tick/game_time/rng_seed/来源/候选/意图/动作句柄。
+        if (trace_ != nullptr) {
+            nlohmann::json candidates = nlohmann::json::array();
+            for (const auto& [cap_id, priority] : record.candidates)
+                candidates.push_back(nlohmann::json{{"id", cap_id}, {"priority", priority}});
+            nlohmann::json line;
+            line["tick"] = tc.tick_index;
+            line["game_time"] = tc.game_time;
+            line["agent"] = agent->id();
+            line["rng_seed"] = record.rng_seed;
+            line["decision_maker"] = record.decision_maker_id;
+            line["source"] = record.winner_source;
+            line["winner_capability"] = record.winner_capability_id;
+            line["candidates"] = std::move(candidates);
+            line["intent"] = tracing::intent_to_json(intent);
+            line["action_handle"] = handle.id;
+            trace_->append(std::move(line));
+        }
     }
 }
 

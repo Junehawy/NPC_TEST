@@ -4,7 +4,9 @@
 // 契约要点：
 //  - 仲裁次序不由模块自报：由 Agent::register_capability() 按注册顺序分配；
 //  - Blackboard-only：模块不得持有 IWorld/IAgentBody 指针；
-//  - propose() 只从 Blackboard + TickContext 读取（RA-§3.5 硬性规则）。
+//  - propose() 只从 Blackboard + TickContext 读取（RA-§3.5 硬性规则）；
+//  - on_tick() 为每 tick 处理钩子（阶段 2 新增，R9）：事件派发后、仲裁前调用，
+//    模块可写 Blackboard（感知打包/条件旗标等），即使决策器权威也会执行。
 #pragma once
 
 #include <optional>
@@ -34,6 +36,13 @@ struct ICapability : public ISerializable {
     // 事件通知（全局广播 + 本 Agent 私有事件），【驱动线程】派发（RA-§2.2）。
     // 默认忽略；注意不得在回调内再入驱动循环（CS-§8.4）。
     virtual void on_event(const core::AgentEvent& /*e*/) {}
+
+    // 每 tick 处理钩子（阶段 2 新增，R9）：事件派发后、仲裁前由 Agent 调用，
+    // 先于决策器 propose。模块可写 Blackboard（如感知打包、条件旗标），
+    // 决策器权威期间同样执行——保证感知状态持续刷新。
+    // 【驱动线程】；确定性要求同 propose（禁系统随机源，RA-§3.7）。
+    // 默认空操作：既有模块无需改动。
+    virtual void on_tick(core::Blackboard& /*bb*/, const TickContext& /*tc*/) {}
 
     // to_json/from_json 继承自 ISerializable（模块私有状态随存档，RA-§7.3）。
 };

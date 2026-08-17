@@ -13,6 +13,7 @@
 #include "npc_agent/core/agent.h"
 #include "npc_agent/core/capability_factory.h"
 #include "npc_agent/interfaces/i_world.h"
+#include "npc_agent/tracing/decision_trace.h"
 
 namespace npc_agent::core {
 
@@ -26,6 +27,10 @@ public:
 
     // 存档恢复用能力工厂（调用 restore 前必须设置）。
     void set_capability_factory(const CapabilityFactory* factory);
+
+    // 决策日志录制（阶段 2，RA 决策表 #22）：非空时每 tick 为每个 Agent 追加一行
+    // （字段见 tracing/decision_trace.h 与 R8）；空指针 = 不录制（热路径零开销）。
+    void set_trace(tracing::DecisionTrace* trace);
 
     // 驱动所有 Agent 一个 tick：感知注入（R5-3）→ 快照组装 → Agent::tick → 执行胜出意图。
     // 无当前场景时为空操作。
@@ -51,6 +56,7 @@ public:
 private:
     IWorld* world_ = nullptr;
     const CapabilityFactory* factory_ = nullptr;
+    tracing::DecisionTrace* trace_ = nullptr; // 非空 = 录制决策日志
     std::deque<AgentEvent> global_queue_;
     std::vector<std::unique_ptr<Agent>> agents_;
     std::vector<AgentEvent> global_scratch_; // tick 内复用（CS-§7.5）

@@ -383,6 +383,9 @@ NPC_TEST/
 │   │   ├── core/              # agent / agent_system / event / blackboard
 │   │   ├── capabilities/      # 各能力模块
 │   │   ├── interfaces/        # i_world / i_agent_body / icapability / intent / ...
+│   │   ├── capabilities/      # 各能力模块（感知模块等，阶段 2）
+│   │   ├── decision/          # FSM / Utility / BT 决策器（阶段 2，R9-2）
+│   │   ├── tracing/           # DecisionTrace 决策日志 v1（阶段 2，R9-5）
 │   │   ├── llm/               # provider / prompt_builder / gateway
 │   │   ├── testing/           # MockWorld/MockBody/玩具能力（无头测试与示例共用，R6-1）
 │   │   └── config/            # 配置结构 + 三级开关解析 + 矩阵测试数据
@@ -444,6 +447,7 @@ NPC_TEST/
 | 32 | 单场景假设显式化：多场景/分片为 v1 排除范围（开放问题 #11） | **v0.3 冻结前修订** |
 | 33 | IWorld 由 AgentSystem 唯一持有，感知/导航查询代执行并注入；模块 propose() 只读 Blackboard | **v0.3 终检修订** |
 | 34 | IAgentBody 由 Agent 持有（执行层），模块不得持有 | **v0.3 终检修订** |
+| 35 | ICapability 每 tick 处理钩子 on_tick：事件派发后、仲裁前调用，决策器权威期间同样执行（感知打包/条件旗标）；默认空实现向后兼容 | **阶段 2 定案（R9-1）** |
 
 ---
 
@@ -465,11 +469,12 @@ NPC_TEST/
 - **验收**：无头程序中，一个 NPC 读配置、每 tick 收事件、经仲裁产出意图给 MockWorld；读档后黑板+能力模块状态可恢复。
 - **验收记录（2025-08-16）**：Release（-Werror 零警告）+ Debug/ASan+UBSan（gcc，libasan 已装）双构建 ctest 5/5 全绿，36 用例 / 171 断言（新增 22 用例覆盖仲裁四步、事件路由、感知注入、读档恢复、确定性）；冒烟示例 `npc_test` 演示"巡逻 → 枪声 → alarm 兜底问候"全链路；门禁含 clang-format 检查全绿；审查报告 `docs/reviews/20250816-阶段1.md`。
 
-### 阶段 2：行为系统（3~4 周）
-- [ ] FSM 实现（闲置/巡逻/警戒/对话/战斗）+ BT / Utility AI（同接口，v1 互斥）
-- [ ] 感知模块（订阅刺激 + 消费 AgentSystem 注入的查询结果并打包）+ 动作生命周期回投
-- [ ] 决策日志 v1 + **trace 录制/回放回归工具**（确定性 RNG 契约生效）
+### 阶段 2：行为系统（3~4 周）✅ 完成
+- [x] FSM 实现（闲置/巡逻/警戒/对话/战斗）+ BT / Utility AI（同接口，v1 互斥）
+- [x] 感知模块（订阅刺激 + 消费 AgentSystem 注入的查询结果并打包）+ 动作生命周期回投
+- [x] 决策日志 v1 + **trace 录制/回放回归工具**（确定性 RNG 契约生效）
 - **验收**：MockWorld 场景"听到枪声 → 警戒 → 呼叫支援 → 搜寻"跑通；trace 回放断言序列一致。
+- **验收记录（2026-08-17）**：FSM/Utility/BT 三类决策器（`npc_agent/decision/`，数据驱动 + fail-fast 定义校验）、感知模块（`capabilities/perception_module`，ICapability::on_tick 钩子 R9）、动作回投（action.completed/failed/cancelled 事件）、DecisionTrace v1 + `tools/trace_replay` CLI（record/replay PASS：50 行严格一致，R8 阈值）落码；验收场景 AcceptanceScenario 时间线断言逐 tick 锁定；Release（-Werror 零警告）ctest 82 用例 / 430 断言全绿；审查报告 `docs/reviews/20260817-阶段2.md`。
 
 ### 阶段 3：寻路与感知增强（2~3 周）
 - [ ] A* 实现（宿主侧示例）+ `can_reach` / `find_path` 消费
@@ -545,7 +550,7 @@ NPC_TEST/
 5. **记忆 v2 向量库选型**（faiss vs 手写 HNSW）：有真实检索需求再定。
 6. **接口进程化保险**：接口层保持"全值语义、无不透明指针、无回调持有宿主对象"，未来若要进程化，接口即天然 IPC 边界（零成本预留，不主动做）。
 7. **Provider::cancel 的真实中断能力 + 冷却联动**：HTTP 层能否真正断开 / 本地推理能否中断，阶段 5 实现时评估，不影响接口形态（默认空操作已预留）。**LLMGateway 须把"取消是否成功"纳入冷却逻辑**：若未能真正中断旧请求，冷却不得立即重置，须等旧请求结束（或超时）才放行新请求——否则同一 NPC 会同时有两个请求在飞，双倍消耗令牌预算（并入本条的评审点 R4-6）。
-8. **trace 回放确定性验收标准**（哪些随机源纳入种子、回归阈值）：阶段 2 开工前定。
+8. **trace 回放确定性验收标准**：✅ 已定案（2026-08-17，阶段 2 开工前定案，详见 §14 R8）——唯一随机源为 Agent 根 RNG（每 tick 派生 rng_seed）；trace 行含 tick_index/game_time/rng_seed/决策来源/候选表/胜出意图；回放 = 同配置同种子同刺激脚本（按 tick 对齐）重跑逐行比对，**阈值 = 严格一致**（首分歧 tick 即失败）；排除跨线程时序/宿主非确定性/真实 LLM。
 9. **编译期开关候选清单最终确认**（llm / memory.vector / 可选导航库）：阶段 0 定。
 10. **IWorld 宿主侧重计算异步化策略**（宿主职责，框架只给契约不规定实现）：阶段 3 评估。
 11. **多场景 / 分片（v1 显式排除范围，冻结前修订 R4）**：v1 假设**单一活跃场景**（AgentSystem 持有单份当前场景 IWorld 引用，Agent 不持有 IWorld 指针）。多场景并发（副本实例、多人房间分片、多地图并行）是**显式排除**的 v1 范围，v2 再评估（届时可能需要 AgentSystem 按场景分片、或 Agent 归属场景）。宿主若打破此假设，属框架范围变更，须走接口评审。
@@ -614,5 +619,18 @@ NPC_TEST/
 | R7-7 效果修复（用户反馈"效果不理想"） | 根因：① NPC 节点未设初始位置（渲染在屏幕左上角）；② 玩具抖动巡逻；③ 问候仅警戒期触发（提示语误导）。修复：初始站位=世界原点；waypoint 回路巡逻；巡逻在玩家可见时让位；窗口 960×540（软渲染流畅）；精灵朝向翻转；玩家边界钳制 |
 | R7-8 硬件渲染 | 本机 Optimus 双显卡（Intel UHD Graphics + NVIDIA MX250）：`scripts/run-godot-demo.sh` 显式选用核显 iris 驱动，无 /dev/dri 时回退 llvmpipe 并提示；验证日志 `Using Device: Intel - Mesa Intel(R) UHD Graphics`（沙箱环境需完整权限才能看到 /dev/dri，用户终端默认可用） |
 | R7-9 演示全参数化 | 全部演示行为参数收拢至 NPC 配置 `extra.demo` 段（DemoConfig fail-fast 解析：未知键/类型错误/非法值启动报错）：巡逻（回路/时间片/移速/让位开关）、警戒时长、问候（开关/文案/语气/优先级/触发距离）、惊吓（刺激类型/表情/优先级）、警戒表情、身体（气泡时长/到达阈值）、玩家（速度/边界）、场景（出生点/缩放/窗口尺寸/面板开关）；配置选择优先级：环境变量 `NPC_DEMO_CONFIG` → 命令行 `--config` → 默认；三套冒烟（默认/alt 自定义文案+窗口+快巡逻/非法配置 fail-fast）各多轮验证，Movie Maker 录帧量化验证 patrol.speed（319px/s vs 预期 320）与布局参数 |
+| R8 trace 回放确定性验收标准（开放问题 #8，阶段 2 开工前定案） | ① 唯一随机源 = Agent 根 RNG（mt19937_64 全状态随存档，每 tick 派生 rng_seed 注入 TickContext；模块用 rng_seed+模块 id 派生子序列），禁 std::rand/系统时钟（承接 #25/R3-6）；② trace 行（JSON lines，决策表 #22）：tick_index / game_time / rng_seed / 决策来源（决策器 id 或候选仲裁）/ 候选表（id+priority）/ 胜出意图 JSON / 执行动作；③ 回放 = 同配置、同 rng_seed、同刺激脚本（刺激按 tick 序号对齐）重跑逐行比对，**回归阈值 = 严格逐字节一致**，首分歧 tick 即失败并输出定位；④ 确定性前提：宿主 IWorld/IAgentBody 实现须确定性（测试用 MockWorld），dt 固定；⑤ 明确排除：跨线程时序、宿主非确定性、真实 LLM（阶段 5 另行定义异步回放的等价性标准） |
+
+**阶段 2 落码修订（R9，并入 v0.3，不另出版本）**：
+
+| 条目 | 处理 |
+|---|---|
+| R9-1 ICapability::on_tick 钩子 | 感知模块需在决策器权威期间持续打包 → 新增每 tick 钩子：事件派发后、仲裁前由 Agent 调用，可写 Blackboard；默认空实现，既有模块零改动；决策表新增 #35，§3.4 管线顺序相应注明 |
+| R9-2 三类决策器 | FSM（黑板/时长/兜底条件迁移 + 意图模板 + 当前状态序列化）、Utility（计分选项 + FNV-1a/splitmix64 确定性噪声 + last_picked 观察）、BT（selector 回退 / sequence 按 done_when 相位推进循环 / condition 装饰器 / action 叶子；读档重置根，决策表 #19）落码 `npc_agent/decision/`，数据驱动 + fail-fast 定义校验，同 IDecisionMaker（v1 互斥） |
+| R9-3 感知模块 | `npc_agent/capabilities/perception_module`：订阅 stimulus.* 事件 → 环缓冲（容量/时间窗可配）→ on_tick 写 heard_&lt;type&gt; 旗标与 perception 打包视图；propose 恒 nullopt |
+| R9-4 动作生命周期回投 | `Agent::report_action_result(handle, completed/failed/cancelled)`（宿主驱动线程调用，IAgentBody 零改动）→ 下 tick 转 action.* 事件派发（决策器与能力均可订阅）；非法结果值忽略 |
+| R9-5 决策日志 v1 + trace 工具 | `tracing/DecisionTrace`（R8 字段 JSON lines + dump/load/compare）+ `AgentSystem::set_trace`（空指针零开销）+ `tools/trace_replay` CLI（record/replay/print）；回放阈值=逐行严格一致 |
+| R9-6 验收场景 | `testing/AcceptanceScenario`：FSM guard + 感知模块 + 确定性刺激脚本（tick 3 枪声，dt=0.1，seed=42）跑通"听到枪声 → 警戒 → 呼叫支援 → 搜寻 → 回 idle"；ctest 时间线逐 tick 断言 + 回放一致性断言 + CLI replay PASS（50 行严格一致） |
+| R9-7 浮点容差 | elapsed_ge 比较加 1e-9 容差（dt=0.1 累计误差导致 2.0s 边界差 1e-15 不触发）；确定性不受影响（常量容差） |
 
 **历史对照（v0.1 → v0.2，摘要）**：接口层重构为 IWorld+IAgentBody 双接口、全 POD 契约类型、Intent variant+仲裁、ActionHandle 生命周期、领域动作走 dispatch_game_event、线程契约（主线程接口 + WorldSnapshot/AgentSnapshot 值语义 + 回调入队）、per-agent Agent + 全局 AgentSystem + scope 事件总线、TickContext、感知查询/推送分流、事件/黑板定界、DialogueSession、LLM 输出分级（Text/JsonSchema）、PromptBuilder/LLMGateway 列为模块且网关移入阶段 5、SocialGraph 世界级、EnTT 移除论证、BT 读档重置、Trace 录制回放、开关依赖闭包与超集约束、decision v1 互斥、序列化契约时机修正、阶段 5 拆出 5.5、MVP 减负。完整明细见 git 历史中 v0.2 版本文档的 §14。
