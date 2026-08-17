@@ -1,0 +1,71 @@
+{
+  "id": "guard_fsm",
+  "decision": "fsm",
+  "rng_seed": 42,
+  "perception": { "radius": 0.0, "sense_type": "sight" },
+  "extra": {
+    "demo": {
+      "fsm": {
+        "enabled": true,
+        "stimulus_window_seconds": 3.0,
+        "player_near_distance": 2.0,
+        "definition": {
+          "initial": "idle",
+          "states": [
+            {
+              "name": "idle",
+              "intent": { "kind": "idle" },
+              "transitions": [
+                { "target": "alert", "condition": { "bb": { "heard_gunshot": true } } },
+                { "target": "greet", "condition": { "bb": { "player_near": true } } }
+              ]
+            },
+            {
+              "name": "alert",
+              "priority": 5.0,
+              "intent": { "kind": "emote", "name": "startled" },
+              "transitions": [
+                { "target": "call_support", "condition": { "elapsed_ge": 1.2 } }
+              ]
+            },
+            {
+              "name": "call_support",
+              "priority": 4.0,
+              "intent": { "kind": "say", "text": "呼叫支援！请求增援", "tone": "urgent" },
+              "transitions": [
+                { "target": "search", "condition": { "elapsed_ge": 1.5 } }
+              ]
+            },
+            {
+              "name": "search",
+              "priority": 3.0,
+              "intent": { "kind": "move_to", "target": [3.0, 0.0, 0.0], "speed": 2.0 },
+              "transitions": [
+                { "target": "idle", "condition": { "elapsed_ge": 2.0 } }
+              ]
+            },
+            {
+              "name": "greet",
+              "priority": 2.0,
+              "intent": { "kind": "say", "text": "你好，旅行者", "tone": "friendly" },
+              "transitions": [
+                { "target": "idle", "condition": { "bb": { "player_near": false } } }
+              ]
+            }
+          ]
+        }
+      },
+      "body": { "say_seconds": 2.0, "emote_seconds": 1.2, "arrive_epsilon": 0.05 },
+      "player": { "speed": 400.0, "clamp_margin": 24.0 },
+      "scene": {
+        "npc_spawn": [0.0, 0.0, 0.0],
+        "player_spawn": [3.5, 0.0, 0.0],
+        "scale": 100.0,
+        "window_width": 960,
+        "window_height": 540,
+        "show_debug": true,
+        "show_hint": true
+      }
+    }
+  }
+}

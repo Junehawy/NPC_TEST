@@ -77,8 +77,9 @@ bool get_waypoints(const json& obj, const std::string& path, std::vector<Vec3>& 
 }
 
 // 检查对象中是否出现未知键（fail-fast，防拼写错误静默失效）。
+template <std::size_t N>
 bool check_known_keys(const json& obj, const std::string& path,
-                      const std::array<std::string_view, 8>& known, std::string& err) {
+                      const std::array<std::string_view, N>& known, std::string& err) {
     for (auto it = obj.begin(); it != obj.end(); ++it) {
         bool found = false;
         for (const auto k : known)
@@ -319,6 +320,48 @@ bool parse_scene(const json& obj, SceneParams& out, std::string& err) {
     return true;
 }
 
+bool parse_fsm(const json& obj, FsmDemoParams& out, std::string& err) {
+    static constexpr std::array<std::string_view, 8> kKeys = {
+        "enabled", "definition", "stimulus_window_seconds", "player_near_distance"};
+    if (!check_known_keys(obj, "fsm", kKeys, err))
+        return false;
+    if (auto it = obj.find("enabled"); it != obj.end()) {
+        if (!get_bool(*it, "fsm.enabled", out.enabled, err))
+            return false;
+    }
+    if (auto it = obj.find("definition"); it != obj.end()) {
+        if (!it->is_object()) {
+            err = "demo 配置字段 fsm.definition 应为对象";
+            return false;
+        }
+        out.definition = *it;
+    }
+    if (auto it = obj.find("stimulus_window_seconds"); it != obj.end()) {
+        double v = 0.0;
+        if (!get_number(*it, "fsm.stimulus_window_seconds", v, err) || v <= 0.0) {
+            if (err.empty())
+                err = "demo 配置字段 fsm.stimulus_window_seconds 必须为正数";
+            return false;
+        }
+        out.stimulus_window_seconds = v;
+    }
+    if (auto it = obj.find("player_near_distance"); it != obj.end()) {
+        double v = 0.0;
+        if (!get_number(*it, "fsm.player_near_distance", v, err) || v < 0.0) {
+            if (err.empty())
+                err = "demo 配置字段 fsm.player_near_distance 不能为负";
+            return false;
+        }
+        out.player_near_distance = static_cast<float>(v);
+    }
+    // enabled=true 必须有 definition（fail-fast：避免静默空定义）。
+    if (out.enabled && (out.definition.is_null() || out.definition.empty())) {
+        err = "demo 配置字段 fsm.enabled=true 时必须提供 fsm.definition";
+        return false;
+    }
+    return true;
+}
+
 } // namespace
 
 std::optional<std::string> parse_demo_config(const json& extra, DemoConfig& out) {
@@ -335,8 +378,8 @@ std::optional<std::string> parse_demo_config(const json& extra, DemoConfig& out)
         return std::string("extra.demo 应为对象");
     const json& d = *demo_it;
 
-    static constexpr std::array<std::string_view, 8> kTopKeys = {
-        "patrol", "alarm_seconds", "greet", "startle", "alert", "body", "player", "scene"};
+    static constexpr std::array<std::string_view, 9> kTopKeys = {
+        "patrol", "alarm_seconds", "greet", "startle", "alert", "body", "player", "scene", "fsm"};
     if (!check_known_keys(d, "demo", kTopKeys, err))
         return err;
 
@@ -389,6 +432,12 @@ std::optional<std::string> parse_demo_config(const json& extra, DemoConfig& out)
         if (!it->is_object())
             return std::string("extra.demo.scene 应为对象");
         if (!parse_scene(*it, cfg.scene, err))
+            return err;
+    }
+    if (auto it = d.find("fsm"); it != d.end()) {
+        if (!it->is_object())
+            return std::string("extra.demo.fsm 应为对象");
+        if (!parse_fsm(*it, cfg.fsm, err))
             return err;
     }
 

@@ -72,6 +72,15 @@ struct SceneParams {
     bool show_hint = true;  // 操作提示开关
 };
 
+// 阶段 2 接入参数（R7-10）：fsm.enabled=true 时演示装配改用框架 FsmDecisionMaker +
+// PerceptionModule（替代旧的巡逻决策器与玩具能力），行为链由 definition 数据驱动。
+struct FsmDemoParams {
+    bool enabled = false;
+    nlohmann::json definition = nlohmann::json::object(); // FsmDecisionMaker 定义（透传校验）
+    double stimulus_window_seconds = 3.0;                 // 感知时间窗（heard_<type> 旗标保持时长）
+    float player_near_distance = 2.0f;                    // 玩家近距阈值（写 player_near 旗标）
+};
+
 // 演示参数全集（默认值 = 演示原始行为）。
 struct DemoConfig {
     PatrolParams patrol;
@@ -82,6 +91,7 @@ struct DemoConfig {
     BodyParams body;
     PlayerParams player;
     SceneParams scene;
+    FsmDemoParams fsm; // 阶段 2 模式（可选；enabled=true 时启用）
 };
 
 // 从 AgentConfig::extra 解析 extra.demo 段；extra 为空对象时使用全默认值。

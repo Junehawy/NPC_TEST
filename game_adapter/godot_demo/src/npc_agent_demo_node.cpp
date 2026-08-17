@@ -18,7 +18,9 @@
 #include "alert_capability.h"
 #include "greet_capability.h"
 #include "guard_patrol_decision.h"
+#include "npc_agent/capabilities/perception_module.h"
 #include "npc_agent/core/agent_config.h"
+#include "npc_agent/decision/fsm_decision_maker.h"
 #include "npc_agent/interfaces/intent.h"
 #include "npc_agent/testing/intent_desc.h"
 #include "startle_capability.h"
@@ -32,6 +34,8 @@ constexpr const char* kNpcSpritePath = "res://assets/sprites/npc.svg";
 constexpr const char* kPlayerSpritePath = "res://assets/sprites/player.svg";
 
 constexpr const char* kHintText = "WASD 移动 · 空格 枪声刺激 · 靠近 NPC 触发问候 · 枪声后进入警戒";
+constexpr const char* kHintTextFsm =
+    "阶段 2 FSM：WASD 移动 · 空格 枪声 → 警戒 → 呼叫支援 → 搜寻 · 靠近触发问候";
 } // namespace
 
 void NpcAgentDemoNode::_bind_methods() {
@@ -46,7 +50,10 @@ void NpcAgentDemoNode::_ready() {
         return;
     }
     build_scene(); // 先建场景（身体绑定），再装配 Agent（顺序依赖：body 绑定先于挂接）
-    setup_agent();
+    if (!setup_agent()) {
+        ready_ = false;
+        return;
+    }
     ready_ = true;
     log_status("NPC 智能体已就绪：" + std::string(agent_->id()));
 }
@@ -55,8 +62,8 @@ void NpcAgentDemoNode::_process(double delta) {
     if (!ready_)
         return;
     world_.advance(delta); // 世界时间先于 tick 推进（与无头示例一致）
-    // 警戒计时：到期解除黑板 alarm，决策器恢复巡逻（RA-§3.4 pending 兜底演示）。
-    if (alarm_time_left_ > 0.0) {
+    // 警戒计时（旧演示模式）：到期解除黑板 alarm，决策器恢复巡逻（RA-§3.4 pending 兜底）。
+    if (!cfg_.fsm.enabled && alarm_time_left_ > 0.0) {
         alarm_time_left_ -= delta;
         if (alarm_time_left_ <= 0.0)
             agent_->blackboard().set("alarm", false);
@@ -73,7 +80,9 @@ void NpcAgentDemoNode::inject_gunshot() {
         return;
     const auto source_pos = world_.entity_pos("player").value_or(Vec3{});
     system_.inject_stimulus(Stimulus{cfg_.startle.stimulus_type, source_pos, 1.0f, "player"});
-    // 警戒：黑板置位使巡逻决策器返回 pending，能力候选接管仲裁（RA-§3.4）。
+    if (cfg_.fsm.enabled)
+        return; // FSM 模式：heard_gunshot 旗标由框架感知模块置位，无需黑板 alarm
+    // 旧演示模式：黑板置位使巡逻决策器返回 pending，能力候选接管仲裁（RA-§3.4）。
     agent_->blackboard().set("alarm", true);
     alarm_time_left_ = cfg_.alarm_seconds;
 }
@@ -119,8 +128,9 @@ bool NpcAgentDemoNode::parse_config() {
         godot::UtilityFunctions::push_error("NPC 配置校验失败: ", godot::String(err->c_str()));
         return false;
     }
-    // 交叉校验：问候触发距离不得超过感知半径（否则问候永不触发，属配置错误）。
-    if (cfg_.greet.max_distance > agent_cfg_.perception.radius) {
+    // 交叉校验（仅旧演示模式）：问候触发距离不得超过感知半径（否则问候永不触发）。
+    // FSM 模式不使用 greet 参数（问候由 player_near 旗标驱动），跳过本校验。
+    if (!cfg_.fsm.enabled && cfg_.greet.max_distance > agent_cfg_.perception.radius) {
         godot::UtilityFunctions::push_error(
             "NPC 配置校验失败: greet.max_distance 超过 perception.radius，问候将永不触发");
         return false;
@@ -128,14 +138,34 @@ bool NpcAgentDemoNode::parse_config() {
     return true;
 }
 
-void NpcAgentDemoNode::setup_agent() {
+bool NpcAgentDemoNode::setup_agent() {
     // 系统装配：世界 → 创建 Agent 挂身体 → 决策器与能力（全部参数来自配置）。
     system_.set_current_world(world_);
     agent_ = &system_.create_agent(std::move(agent_cfg_), body_);
-    agent_->set_decision_maker(std::make_unique<GuardPatrolDecision>(cfg_.patrol));
-    agent_->register_capability(std::make_unique<GreetCapability>(cfg_.greet));
-    agent_->register_capability(std::make_unique<StartleCapability>(cfg_.startle));
-    agent_->register_capability(std::make_unique<AlertCapability>(cfg_.alert));
+    if (cfg_.fsm.enabled) {
+        // 阶段 2 模式（R7-10）：框架 FsmDecisionMaker + PerceptionModule——
+        // 行为链（警戒→呼叫支援→搜寻→问候）由配置中的 FSM 定义数据驱动。
+        decision::FsmDefinition fsm_def;
+        if (auto err = decision::parse_fsm_definition(cfg_.fsm.definition, fsm_def);
+            err.has_value()) {
+            godot::UtilityFunctions::push_error("FSM 定义校验失败: ", godot::String(err->c_str()));
+            return false;
+        }
+        agent_->set_decision_maker(
+            std::make_unique<decision::FsmDecisionMaker>(std::move(fsm_def)));
+        capabilities::PerceptionModuleParams perception_params;
+        perception_params.stimulus_window_seconds = cfg_.fsm.stimulus_window_seconds;
+        agent_->register_capability(
+            std::make_unique<capabilities::PerceptionModule>(perception_params));
+        log_status("装配阶段 2 行为系统（FSM + 感知模块）");
+    } else {
+        // 旧演示模式：巡逻决策器 + 问候/惊吓/警戒能力（参数化，见 demo_config）。
+        agent_->set_decision_maker(std::make_unique<GuardPatrolDecision>(cfg_.patrol));
+        agent_->register_capability(std::make_unique<GreetCapability>(cfg_.greet));
+        agent_->register_capability(std::make_unique<StartleCapability>(cfg_.startle));
+        agent_->register_capability(std::make_unique<AlertCapability>(cfg_.alert));
+    }
+    return true;
 }
 
 void NpcAgentDemoNode::build_scene() {
@@ -175,6 +205,10 @@ void NpcAgentDemoNode::build_scene() {
         player_node_->set_script(player_script); // 先挂脚本再入树（_ready 时序）
         player_node_->set("speed", cfg_.player.speed);
         player_node_->set("clamp_margin", cfg_.player.clamp_margin);
+        // 钳制边界用配置窗口尺寸（无头模式首帧视口未初始化，不可读视口）。
+        player_node_->set("clamp_size",
+                          godot::Vector2(static_cast<float>(cfg_.scene.window_width),
+                                         static_cast<float>(cfg_.scene.window_height)));
     }
     auto* player_sprite = memnew(godot::Sprite2D);
     player_sprite->set_texture(godot::ResourceLoader::get_singleton()->load(kPlayerSpritePath));
@@ -192,7 +226,7 @@ void NpcAgentDemoNode::build_scene() {
     hint_label->set_name("HintLabel");
     hint_label->set_position(
         godot::Vector2(16.0f, static_cast<float>(cfg_.scene.window_height) - 30.0f));
-    hint_label->set_text(godot::String::utf8(kHintText));
+    hint_label->set_text(godot::String::utf8(cfg_.fsm.enabled ? kHintTextFsm : kHintText));
     hint_label->set_modulate(godot::Color(0.7f, 0.7f, 0.7f, 1.0f));
     hint_label->set_visible(cfg_.scene.show_hint);
     add_child(hint_label);
@@ -207,7 +241,12 @@ void NpcAgentDemoNode::inject_player_distance() {
     const Vec3 npc_pos = body_.body_state().position;
     const float dx = player_pos->x - npc_pos.x;
     const float dy = player_pos->y - npc_pos.y;
-    agent_->blackboard().set("player_distance", std::sqrt(dx * dx + dy * dy));
+    const float distance = std::sqrt(dx * dx + dy * dy);
+    agent_->blackboard().set("player_distance", distance);
+    if (cfg_.fsm.enabled) {
+        // FSM 条件旗标：玩家进入近距阈值（问候状态迁移条件）。
+        agent_->blackboard().set("player_near", distance <= cfg_.fsm.player_near_distance);
+    }
 }
 
 void NpcAgentDemoNode::update_debug_label() {

@@ -37,7 +37,7 @@ protected:
 private:
     std::string resolve_config_path() const; // 命令行 --config 覆盖 / 默认路径
     bool parse_config();                     // 读配置并解析框架+演示参数；失败返回 false
-    void setup_agent();                      // 装配 AgentSystem（决策器/能力，参数来自配置）
+    bool setup_agent();                      // 装配 AgentSystem（决策器/能力，参数来自配置）
     void build_scene();                      // 场景树装配（窗口/精灵/气泡/玩家/面板）
     void update_debug_label();               // 调试面板刷新
     void inject_player_distance();           // 黑板注入 player_distance（问候距离判定用）
