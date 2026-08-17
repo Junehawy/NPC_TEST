@@ -1,0 +1,205 @@
+{
+  "id": "town_guard",
+  "decision": "fsm",
+  "rng_seed": 42,
+  "perception": { "radius": 0.0, "sense_type": "sight" },
+  "extra": {
+    "demo": {
+      "body": { "say_seconds": 2.0, "emote_seconds": 1.2, "arrive_epsilon": 0.05 },
+      "player": { "speed": 400.0, "clamp_margin": 24.0 },
+      "scene": {
+        "player_spawn": [4.2, 0.0, 0.0],
+        "scale": 100.0,
+        "window_width": 960,
+        "window_height": 540,
+        "show_debug": true,
+        "show_hint": true,
+        "npcs": [
+          {
+            "name": "guard",
+            "spawn": [-2.5, 0.0, 0.0],
+            "tint": [0.29, 0.5, 0.83],
+            "rng_seed": 42,
+            "shout_when_say": true,
+            "fsm": {
+              "enabled": true,
+              "stimulus_window_seconds": 3.0,
+              "player_near_distance": 2.0,
+              "definition": {
+                "initial": "idle",
+                "states": [
+                  {
+                    "name": "idle",
+                    "intent": { "kind": "idle" },
+                    "transitions": [
+                      { "target": "alert", "condition": { "bb": { "heard_gunshot": true } } },
+                      { "target": "greet", "condition": { "bb": { "player_near": true } } },
+                      { "target": "walk1", "condition": { "elapsed_ge": 1.0 } }
+                    ]
+                  },
+                  {
+                    "name": "walk1",
+                    "intent": { "kind": "move_to", "target": [-4.0, 0.0, 0.0], "speed": 1.5 },
+                    "transitions": [
+                      { "target": "alert", "condition": { "bb": { "heard_gunshot": true } } },
+                      { "target": "walk2", "condition": { "elapsed_ge": 2.5 } }
+                    ]
+                  },
+                  {
+                    "name": "walk2",
+                    "intent": { "kind": "move_to", "target": [0.0, 0.0, 0.0], "speed": 1.5 },
+                    "transitions": [
+                      { "target": "alert", "condition": { "bb": { "heard_gunshot": true } } },
+                      { "target": "idle", "condition": { "elapsed_ge": 2.5 } }
+                    ]
+                  },
+                  {
+                    "name": "alert",
+                    "priority": 5.0,
+                    "intent": { "kind": "emote", "name": "startled" },
+                    "transitions": [
+                      { "target": "call_support", "condition": { "elapsed_ge": 1.2 } }
+                    ]
+                  },
+                  {
+                    "name": "call_support",
+                    "priority": 4.0,
+                    "intent": { "kind": "say", "text": "呼叫支援！请求增援", "tone": "urgent" },
+                    "transitions": [
+                      { "target": "search", "condition": { "elapsed_ge": 1.5 } }
+                    ]
+                  },
+                  {
+                    "name": "search",
+                    "priority": 3.0,
+                    "intent": { "kind": "move_to", "target": [2.2, 0.0, 0.0], "speed": 2.0 },
+                    "transitions": [
+                      { "target": "idle", "condition": { "elapsed_ge": 3.5 } }
+                    ]
+                  },
+                  {
+                    "name": "greet",
+                    "priority": 2.0,
+                    "intent": { "kind": "say", "text": "你好，旅行者", "tone": "friendly" },
+                    "transitions": [
+                      { "target": "idle", "condition": { "bb": { "player_near": false } } }
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "name": "medic",
+            "spawn": [3.5, 1.5, 0.0],
+            "tint": [0.9, 0.3, 0.3],
+            "rng_seed": 7,
+            "shout_when_say": false,
+            "fsm": {
+              "enabled": true,
+              "stimulus_window_seconds": 5.0,
+              "player_near_distance": 2.0,
+              "definition": {
+                "initial": "idle",
+                "states": [
+                  {
+                    "name": "idle",
+                    "intent": { "kind": "idle" },
+                    "transitions": [
+                      { "target": "respond", "condition": { "bb": { "heard_shout": true } } },
+                      { "target": "crouch", "condition": { "bb": { "heard_gunshot": true } } },
+                      { "target": "pace1", "condition": { "elapsed_ge": 4.0 } }
+                    ]
+                  },
+                  {
+                    "name": "pace1",
+                    "intent": { "kind": "move_to", "target": [2.5, 1.5, 0.0], "speed": 1.0 },
+                    "transitions": [
+                      { "target": "respond", "condition": { "bb": { "heard_shout": true } } },
+                      { "target": "crouch", "condition": { "bb": { "heard_gunshot": true } } },
+                      { "target": "idle", "condition": { "elapsed_ge": 3.0 } }
+                    ]
+                  },
+                  {
+                    "name": "crouch",
+                    "priority": 4.0,
+                    "intent": { "kind": "emote", "name": "隐蔽" },
+                    "transitions": [
+                      { "target": "idle", "condition": { "elapsed_ge": 1.5 } }
+                    ]
+                  },
+                  {
+                    "name": "respond",
+                    "priority": 3.0,
+                    "intent": { "kind": "move_to", "target": [1.0, 0.6, 0.0], "speed": 2.5 },
+                    "transitions": [
+                      { "target": "idle", "condition": { "elapsed_ge": 3.0 } }
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "name": "civilian",
+            "spawn": [-4.5, 1.8, 0.0],
+            "tint": [0.24, 0.75, 0.37],
+            "rng_seed": 13,
+            "shout_when_say": false,
+            "fsm": {
+              "enabled": true,
+              "stimulus_window_seconds": 3.0,
+              "player_near_distance": 2.0,
+              "definition": {
+                "initial": "idle",
+                "states": [
+                  {
+                    "name": "idle",
+                    "intent": { "kind": "idle" },
+                    "transitions": [
+                      { "target": "flee", "condition": { "bb": { "heard_gunshot": true } } },
+                      { "target": "greet", "condition": { "bb": { "player_near": true } } },
+                      { "target": "wander1", "condition": { "elapsed_ge": 1.5 } }
+                    ]
+                  },
+                  {
+                    "name": "wander1",
+                    "intent": { "kind": "move_to", "target": [-3.5, 1.8, 0.0], "speed": 1.0 },
+                    "transitions": [
+                      { "target": "flee", "condition": { "bb": { "heard_gunshot": true } } },
+                      { "target": "wander2", "condition": { "elapsed_ge": 2.0 } }
+                    ]
+                  },
+                  {
+                    "name": "wander2",
+                    "intent": { "kind": "move_to", "target": [-4.5, 1.8, 0.0], "speed": 1.0 },
+                    "transitions": [
+                      { "target": "flee", "condition": { "bb": { "heard_gunshot": true } } },
+                      { "target": "idle", "condition": { "elapsed_ge": 2.0 } }
+                    ]
+                  },
+                  {
+                    "name": "flee",
+                    "priority": 5.0,
+                    "intent": { "kind": "move_to", "target": [-4.5, -1.8, 0.0], "speed": 3.0 },
+                    "transitions": [
+                      { "target": "idle", "condition": { "elapsed_ge": 4.0 } }
+                    ]
+                  },
+                  {
+                    "name": "greet",
+                    "priority": 2.0,
+                    "intent": { "kind": "say", "text": "你好呀，旅行者！", "tone": "friendly" },
+                    "transitions": [
+                      { "target": "idle", "condition": { "bb": { "player_near": false } } }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

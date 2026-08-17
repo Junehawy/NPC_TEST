@@ -10,6 +10,8 @@ namespace {
 
 using json = nlohmann::json;
 
+bool parse_fsm(const json& obj, FsmDemoParams& out, std::string& err);
+
 // 字段路径拼接（错误定位用）。
 std::string path_of(const std::string& base, std::string_view key) {
     return base.empty() ? std::string(key) : base + "." + std::string(key);
@@ -268,10 +270,70 @@ bool parse_player(const json& obj, PlayerParams& out, std::string& err) {
     return true;
 }
 
+bool parse_npc(const json& obj, NpcSpec& out, std::string& err) {
+    static constexpr std::array<std::string_view, 8> kKeys = {"name",     "spawn",          "tint",
+                                                              "rng_seed", "shout_when_say", "fsm"};
+    if (!check_known_keys(obj, "scene.npcs[]", kKeys, err))
+        return false;
+    if (auto it = obj.find("name"); it != obj.end()) {
+        if (!get_string(*it, "scene.npcs[].name", out.name, err) || out.name.empty()) {
+            if (err.empty())
+                err = "demo 配置字段 scene.npcs[].name 应为非空字符串";
+            return false;
+        }
+    } else {
+        err = "demo 配置字段 scene.npcs[].name 缺失";
+        return false;
+    }
+    if (auto it = obj.find("spawn"); it != obj.end()) {
+        if (!get_vec3(*it, "scene.npcs[].spawn", out.spawn, err))
+            return false;
+    }
+    if (auto it = obj.find("tint"); it != obj.end()) {
+        if (!it->is_array() || it->size() != 3) {
+            err = "demo 配置字段 scene.npcs[].tint 应为 [r, g, b] 数组";
+            return false;
+        }
+        out.tint.clear();
+        for (const auto& v : *it) {
+            if (!v.is_number()) {
+                err = "demo 配置字段 scene.npcs[].tint 元素应为数值";
+                return false;
+            }
+            out.tint.push_back(v.get<float>());
+        }
+    }
+    if (auto it = obj.find("rng_seed"); it != obj.end()) {
+        if (!it->is_number()) {
+            err = "demo 配置字段 scene.npcs[].rng_seed 应为数值";
+            return false;
+        }
+        out.rng_seed = it->get<uint64_t>();
+    }
+    if (auto it = obj.find("shout_when_say"); it != obj.end()) {
+        if (!get_bool(*it, "scene.npcs[].shout_when_say", out.shout_when_say, err))
+            return false;
+    }
+    if (auto it = obj.find("fsm"); it != obj.end()) {
+        if (!it->is_object()) {
+            err = "demo 配置字段 scene.npcs[].fsm 应为对象";
+            return false;
+        }
+        if (!parse_fsm(*it, out.fsm, err))
+            return false;
+    }
+    // 多 NPC 模式强制阶段 2 装配（每个 NPC 必须有启用且带定义的 FSM）。
+    if (!out.fsm.enabled || out.fsm.definition.is_null() || out.fsm.definition.empty()) {
+        err = "demo 配置字段 scene.npcs[].fsm 必须启用且提供 definition（多 NPC 模式）";
+        return false;
+    }
+    return true;
+}
+
 bool parse_scene(const json& obj, SceneParams& out, std::string& err) {
-    static constexpr std::array<std::string_view, 8> kKeys = {
-        "npc_spawn",     "player_spawn", "scale",    "window_width",
-        "window_height", "show_debug",   "show_hint"};
+    static constexpr std::array<std::string_view, 9> kKeys = {
+        "npc_spawn",     "player_spawn", "scale",     "window_width",
+        "window_height", "show_debug",   "show_hint", "npcs"};
     if (!check_known_keys(obj, "scene", kKeys, err))
         return false;
     if (auto it = obj.find("npc_spawn"); it != obj.end()) {
@@ -316,6 +378,24 @@ bool parse_scene(const json& obj, SceneParams& out, std::string& err) {
     if (auto it = obj.find("show_hint"); it != obj.end()) {
         if (!get_bool(*it, "scene.show_hint", out.show_hint, err))
             return false;
+    }
+    if (auto it = obj.find("npcs"); it != obj.end()) {
+        if (!it->is_array()) {
+            err = "demo 配置字段 scene.npcs 应为数组";
+            return false;
+        }
+        for (std::size_t i = 0; i < it->size(); ++i) {
+            NpcSpec spec;
+            if (!parse_npc((*it)[i], spec, err))
+                return false;
+            for (const auto& existing : out.npcs) {
+                if (existing.name == spec.name) {
+                    err = "demo 配置字段 scene.npcs 名称重复: " + spec.name;
+                    return false;
+                }
+            }
+            out.npcs.push_back(std::move(spec));
+        }
     }
     return true;
 }

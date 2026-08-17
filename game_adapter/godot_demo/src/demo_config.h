@@ -61,17 +61,6 @@ struct PlayerParams {
     float clamp_margin = 24.0f; // 窗口边界钳制边距（像素）
 };
 
-// 场景参数（演示节点装配期读取）。
-struct SceneParams {
-    Vec3 npc_spawn{};                    // NPC 出生点（世界坐标）
-    Vec3 player_spawn{3.5f, 0.0f, 0.0f}; // 玩家出生点（世界坐标）
-    float scale = 100.0f;                // 像素 / 世界单位
-    int window_width = 960;              // 窗口尺寸（像素）
-    int window_height = 540;
-    bool show_debug = true; // 调试面板开关
-    bool show_hint = true;  // 操作提示开关
-};
-
 // 阶段 2 接入参数（R7-10）：fsm.enabled=true 时演示装配改用框架 FsmDecisionMaker +
 // PerceptionModule（替代旧的巡逻决策器与玩具能力），行为链由 definition 数据驱动。
 struct FsmDemoParams {
@@ -79,6 +68,28 @@ struct FsmDemoParams {
     nlohmann::json definition = nlohmann::json::object(); // FsmDecisionMaker 定义（透传校验）
     double stimulus_window_seconds = 3.0;                 // 感知时间窗（heard_<type> 旗标保持时长）
     float player_near_distance = 2.0f;                    // 玩家近距阈值（写 player_near 旗标）
+};
+
+// 单个 NPC 规格（多 NPC 场景模式，R7-11）。
+struct NpcSpec {
+    std::string name;                            // 节点名 + Agent id（场景内唯一）
+    Vec3 spawn{};                                // 出生点（世界坐标）
+    std::vector<float> tint{0.29f, 0.5f, 0.83f}; // 精灵调制色（RGB 0~1）
+    uint64_t rng_seed = 42;
+    bool shout_when_say = false; // 台词含"呼叫支援"时广播 stimulus.shout（宿主声学传播）
+    FsmDemoParams fsm;           // 阶段 2 行为（多 NPC 模式强制启用）
+};
+
+// 场景参数（演示节点装配期读取）。
+struct SceneParams {
+    Vec3 npc_spawn{};                    // NPC 出生点（世界坐标，单 NPC 模式）
+    Vec3 player_spawn{3.5f, 0.0f, 0.0f}; // 玩家出生点（世界坐标）
+    float scale = 100.0f;                // 像素 / 世界单位
+    int window_width = 960;              // 窗口尺寸（像素）
+    int window_height = 540;
+    bool show_debug = true;    // 调试面板开关
+    bool show_hint = true;     // 操作提示开关
+    std::vector<NpcSpec> npcs; // 非空 = 多 NPC 模式（覆盖单 NPC 装配，R7-11）
 };
 
 // 演示参数全集（默认值 = 演示原始行为）。

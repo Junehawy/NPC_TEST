@@ -1,16 +1,22 @@
 // NpcAgentDemoNode —— 演示根节点（GDExtension 注册到 ClassDB 的场景类，RA-§8.2）：
 // _ready 装配框架（配置加载 → 参数解析 → 适配器 → AgentSystem → 决策器/能力），
 // _process 按帧驱动 advance → 移动推进 → tick → 调试面板刷新。
-// 全部演示行为参数来自 NPC 配置 JSON 的 extra.demo 段（DemoConfig，fail-fast）；
-// 配置路径可用命令行用户参数覆盖：godot ... -- --config res://路径.json。
+// 两种装配模式（由配置决定）：
+//  - 单 NPC 模式（scene.npcs 为空）：旧巡逻决策器+玩具能力 或 框架 FSM（fsm.enabled）；
+//  - 多 NPC 模式（scene.npcs 非空，R7-11）：每个 NPC 独立 Agent + FSM + 感知模块，
+//    宿主注入 player_distance/player_near 旗标；"呼叫支援"台词经宿主声学传播
+//    （shout_when_say）转为 stimulus.shout，驱动其他 NPC 响应（连锁反应）。
 // 玩家输入由 GDScript（scripts/player.gd）处理，并通过 inject_gunshot()
-// 跨语言调用回本节点，演示 GDScript↔C++ 扩展边界。
-// 线程契约：全部方法【驱动线程】（Godot 主线程）。
+// 跨语言调用回本节点。线程契约：全部方法【驱动线程】（Godot 主线程）。
 #pragma once
+
+#include <string>
+#include <vector>
 
 #include <godot_cpp/classes/label.hpp>
 #include <godot_cpp/classes/node.hpp>
 #include <godot_cpp/classes/node2d.hpp>
+#include <godot_cpp/classes/sprite2d.hpp>
 
 #include "demo_config.h"
 #include "godot_body.h"
@@ -26,37 +32,53 @@ public:
     void _ready() override;
     void _process(double delta) override;
 
-    // 玩家开火（GDScript 调用）：注入枪声刺激，下一 tick NPC 出惊吓表情；
-    // 同时置黑板 alarm（决策器进入 pending），警戒 alarm_seconds 后恢复巡逻——
-    // 期间能力候选参与仲裁（问候/惊吓/警戒），演示完整仲裁管线（RA-§3.4）。
+    // 玩家开火（GDScript 调用）：注入枪声刺激，经感知模块驱动各 NPC 反应。
     void inject_gunshot();
 
 protected:
     static void _bind_methods();
 
 private:
+    // 单个 NPC 运行实例（多 NPC 模式）。
+    struct NpcInstance {
+        core::Agent* agent = nullptr;
+        godot::Node2D* node = nullptr;
+        godot::Sprite2D* sprite = nullptr;
+        godot::Label* bubble = nullptr;
+        GodotBody body;
+        bool shout_sent = false; // 呼叫支援台词已转发为 stimulus.shout（边沿触发）
+        bool shout_when_say = false;
+        float player_near_distance = 2.0f; // 近距阈值（规格注入）
+    };
+
     std::string resolve_config_path() const; // 命令行 --config 覆盖 / 默认路径
     bool parse_config();                     // 读配置并解析框架+演示参数；失败返回 false
-    bool setup_agent();                      // 装配 AgentSystem（决策器/能力，参数来自配置）
+    bool setup_agents();                     // 装配 AgentSystem（决策器/能力，参数来自配置）
+    bool setup_single_npc();                 // 单 NPC 模式装配（旧巡逻 或 框架 FSM）
+    bool setup_multi_npc();                  // 多 NPC 模式装配（每 NPC 独立 FSM+感知）
     void build_scene();                      // 场景树装配（窗口/精灵/气泡/玩家/面板）
-    void update_debug_label();               // 调试面板刷新
-    void inject_player_distance();           // 黑板注入 player_distance（问候距离判定用）
+    void build_single_npc_scene(const WorldTransform& transform); // 单 NPC 场景
+    void build_multi_npc_scene(const WorldTransform& transform);  // 多 NPC 场景（规格表）
+    void update_debug_label();                                    // 调试面板刷新（多 NPC 逐行）
+    void inject_player_flags(core::Agent& agent, float near_distance); // 距离/近距旗标
+    void propagate_shouts();                 // 呼叫支援台词 → stimulus.shout（声学传播）
     void log_status(const std::string& msg); // 启动状态输出（控制台）
 
     DemoConfig cfg_;
     core::AgentConfig agent_cfg_;
     core::AgentSystem system_;
     GodotWorld world_;
-    GodotBody body_;
-    core::Agent* agent_ = nullptr;
+    GodotBody body_;                // 单 NPC 模式的身体
+    core::Agent* agent_ = nullptr;  // 单 NPC 模式的 Agent
+    std::vector<NpcInstance> npcs_; // 多 NPC 模式实例
     bool ready_ = false;
 
     // 场景对象（场景树持有，本类不负责析构）。
-    godot::Node2D* npc_node_ = nullptr;
+    godot::Node2D* npc_node_ = nullptr; // 单 NPC 模式
     godot::Node2D* player_node_ = nullptr;
     godot::Label* bubble_label_ = nullptr;
     godot::Label* debug_label_ = nullptr;
-    double alarm_time_left_ = 0.0; // 警戒剩余时间（>0 时黑板 alarm=true）
+    double alarm_time_left_ = 0.0; // 警戒剩余时间（旧模式；>0 时黑板 alarm=true）
 };
 
 } // namespace npc_agent::adapter::godot_demo

@@ -4,6 +4,7 @@
 #include <memory>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include <godot_cpp/classes/display_server.hpp>
@@ -36,6 +37,10 @@ constexpr const char* kPlayerSpritePath = "res://assets/sprites/player.svg";
 constexpr const char* kHintText = "WASD 移动 · 空格 枪声刺激 · 靠近 NPC 触发问候 · 枪声后进入警戒";
 constexpr const char* kHintTextFsm =
     "阶段 2 FSM：WASD 移动 · 空格 枪声 → 警戒 → 呼叫支援 → 搜寻 · 靠近触发问候";
+constexpr const char* kHintTextMulti =
+    "阶段 2 多NPC：WASD 移动 · 空格 枪声 → 守卫警戒呼叫支援 · 平民逃窜 · 支援兵响应 · 靠近问候";
+
+constexpr const char* kShoutMarker = "呼叫支援"; // 台词标记（宿主声学传播触发条件）
 } // namespace
 
 void NpcAgentDemoNode::_bind_methods() {
@@ -50,29 +55,47 @@ void NpcAgentDemoNode::_ready() {
         return;
     }
     build_scene(); // 先建场景（身体绑定），再装配 Agent（顺序依赖：body 绑定先于挂接）
-    if (!setup_agent()) {
+    if (!setup_agents()) {
         ready_ = false;
         return;
     }
     ready_ = true;
-    log_status("NPC 智能体已就绪：" + std::string(agent_->id()));
+    if (npcs_.empty())
+        log_status("NPC 智能体已就绪：" + std::string(agent_->id()));
+    else
+        log_status("多 NPC 智能体已就绪：" + std::to_string(npcs_.size()) + " 个");
 }
 
 void NpcAgentDemoNode::_process(double delta) {
     if (!ready_)
         return;
     world_.advance(delta); // 世界时间先于 tick 推进（与无头示例一致）
-    // 警戒计时（旧演示模式）：到期解除黑板 alarm，决策器恢复巡逻（RA-§3.4 pending 兜底）。
-    if (!cfg_.fsm.enabled && alarm_time_left_ > 0.0) {
+    // 警戒计时（旧单 NPC 巡逻模式）：到期解除黑板 alarm（RA-§3.4 pending 兜底）。
+    if (npcs_.empty() && !cfg_.fsm.enabled && alarm_time_left_ > 0.0) {
         alarm_time_left_ -= delta;
         if (alarm_time_left_ <= 0.0)
             agent_->blackboard().set("alarm", false);
     }
-    body_.update_movement(delta);
-    body_.update_bubble(delta);
-    inject_player_distance(); // 宿主注入派生状态（问候距离判定，黑板契约内）
+    if (npcs_.empty()) {
+        body_.update_movement(delta);
+        body_.update_bubble(delta);
+    } else {
+        for (auto& npc : npcs_) {
+            npc.body.update_movement(delta);
+            npc.body.update_bubble(delta);
+        }
+    }
+    // 宿主注入派生状态（距离/近距旗标，黑板契约内；多 NPC 各自独立黑板）。
+    if (npcs_.empty()) {
+        inject_player_flags(*agent_, cfg_.fsm.enabled ? cfg_.fsm.player_near_distance : -1.0f);
+    } else {
+        for (auto& npc : npcs_)
+            inject_player_flags(*npc.agent, npc.player_near_distance);
+    }
     system_.tick();
-    update_debug_label(); // 演示规模：每帧刷新面板，保证瞬时意图（惊吓）可见
+    if (!npcs_.empty())
+        propagate_shouts(); // 呼叫支援台词 → stimulus.shout（连锁反应）
+    update_debug_label();   // 演示规模：每帧刷新面板，保证瞬时意图可见
 }
 
 void NpcAgentDemoNode::inject_gunshot() {
@@ -80,9 +103,9 @@ void NpcAgentDemoNode::inject_gunshot() {
         return;
     const auto source_pos = world_.entity_pos("player").value_or(Vec3{});
     system_.inject_stimulus(Stimulus{cfg_.startle.stimulus_type, source_pos, 1.0f, "player"});
-    if (cfg_.fsm.enabled)
+    if (!npcs_.empty() || cfg_.fsm.enabled)
         return; // FSM 模式：heard_gunshot 旗标由框架感知模块置位，无需黑板 alarm
-    // 旧演示模式：黑板置位使巡逻决策器返回 pending，能力候选接管仲裁（RA-§3.4）。
+    // 旧单 NPC 巡逻模式：黑板置位使巡逻决策器返回 pending（RA-§3.4）。
     agent_->blackboard().set("alarm", true);
     alarm_time_left_ = cfg_.alarm_seconds;
 }
@@ -128,9 +151,9 @@ bool NpcAgentDemoNode::parse_config() {
         godot::UtilityFunctions::push_error("NPC 配置校验失败: ", godot::String(err->c_str()));
         return false;
     }
-    // 交叉校验（仅旧演示模式）：问候触发距离不得超过感知半径（否则问候永不触发）。
-    // FSM 模式不使用 greet 参数（问候由 player_near 旗标驱动），跳过本校验。
-    if (!cfg_.fsm.enabled && cfg_.greet.max_distance > agent_cfg_.perception.radius) {
+    // 交叉校验（仅旧单 NPC 巡逻模式）：问候触发距离不得超过感知半径。
+    if (cfg_.scene.npcs.empty() && !cfg_.fsm.enabled &&
+        cfg_.greet.max_distance > agent_cfg_.perception.radius) {
         godot::UtilityFunctions::push_error(
             "NPC 配置校验失败: greet.max_distance 超过 perception.radius，问候将永不触发");
         return false;
@@ -138,13 +161,17 @@ bool NpcAgentDemoNode::parse_config() {
     return true;
 }
 
-bool NpcAgentDemoNode::setup_agent() {
-    // 系统装配：世界 → 创建 Agent 挂身体 → 决策器与能力（全部参数来自配置）。
+bool NpcAgentDemoNode::setup_agents() {
     system_.set_current_world(world_);
+    if (cfg_.scene.npcs.empty())
+        return setup_single_npc();
+    return setup_multi_npc();
+}
+
+bool NpcAgentDemoNode::setup_single_npc() {
     agent_ = &system_.create_agent(std::move(agent_cfg_), body_);
     if (cfg_.fsm.enabled) {
-        // 阶段 2 模式（R7-10）：框架 FsmDecisionMaker + PerceptionModule——
-        // 行为链（警戒→呼叫支援→搜寻→问候）由配置中的 FSM 定义数据驱动。
+        // 阶段 2 模式（R7-10）：框架 FsmDecisionMaker + PerceptionModule。
         decision::FsmDefinition fsm_def;
         if (auto err = decision::parse_fsm_definition(cfg_.fsm.definition, fsm_def);
             err.has_value()) {
@@ -168,6 +195,41 @@ bool NpcAgentDemoNode::setup_agent() {
     return true;
 }
 
+bool NpcAgentDemoNode::setup_multi_npc() {
+    for (std::size_t i = 0; i < npcs_.size(); ++i) {
+        auto& npc = npcs_[i];
+        const NpcSpec& spec = cfg_.scene.npcs[i];
+
+        // 每个 NPC 独立 Agent 配置（id 即规格名，感知半径 0：刺激驱动）。
+        core::AgentConfig cfg;
+        cfg.id = spec.name;
+        cfg.decision_kind = "fsm";
+        cfg.rng_seed = spec.rng_seed;
+        cfg.perception.radius = 0.0f;
+
+        npc.agent = &system_.create_agent(std::move(cfg), npc.body);
+        npc.shout_when_say = spec.shout_when_say;
+        npc.player_near_distance = spec.fsm.player_near_distance;
+
+        decision::FsmDefinition fsm_def;
+        if (auto err = decision::parse_fsm_definition(spec.fsm.definition, fsm_def);
+            err.has_value()) {
+            godot::UtilityFunctions::push_error("FSM 定义校验失败 (",
+                                                godot::String(spec.name.c_str()),
+                                                "): ", godot::String(err->c_str()));
+            return false;
+        }
+        npc.agent->set_decision_maker(
+            std::make_unique<decision::FsmDecisionMaker>(std::move(fsm_def)));
+        capabilities::PerceptionModuleParams perception_params;
+        perception_params.stimulus_window_seconds = spec.fsm.stimulus_window_seconds;
+        npc.agent->register_capability(
+            std::make_unique<capabilities::PerceptionModule>(perception_params));
+    }
+    log_status("装配阶段 2 多 NPC 行为系统（每 NPC 独立 FSM + 感知模块）");
+    return true;
+}
+
 void NpcAgentDemoNode::build_scene() {
     // 窗口与坐标：窗口尺寸/缩放/出生点全部来自配置（软渲染机器可调小窗口）。
     godot::DisplayServer::get_singleton()->window_set_size(
@@ -177,22 +239,10 @@ void NpcAgentDemoNode::build_scene() {
                                          static_cast<float>(cfg_.scene.window_height) / 2.0f)};
     world_.set_transform(transform);
 
-    // NPC：精灵 + 头顶气泡（默认隐藏，台词/表情时限时显示）。
-    npc_node_ = memnew(godot::Node2D);
-    npc_node_->set_name("Npc");
-    npc_node_->set_position(transform.to_pixel(cfg_.scene.npc_spawn));
-    add_child(npc_node_);
-    auto* npc_sprite = memnew(godot::Sprite2D);
-    npc_sprite->set_texture(godot::ResourceLoader::get_singleton()->load(kNpcSpritePath));
-    npc_node_->add_child(npc_sprite);
-    bubble_label_ = memnew(godot::Label);
-    bubble_label_->set_name("BubbleLabel");
-    bubble_label_->set_position(godot::Vector2(-160.0f, -72.0f));
-    bubble_label_->set_size(godot::Vector2(320.0f, 0.0f));
-    bubble_label_->set_horizontal_alignment(
-        godot::HorizontalAlignment::HORIZONTAL_ALIGNMENT_CENTER);
-    bubble_label_->set_visible(false);
-    npc_node_->add_child(bubble_label_);
+    if (cfg_.scene.npcs.empty())
+        build_single_npc_scene(transform);
+    else
+        build_multi_npc_scene(transform);
 
     // 玩家：精灵 + GDScript 输入脚本（跨语言边界：GDScript 回调本节点方法）；
     // 速度/边界参数经脚本变量注入。
@@ -226,36 +276,120 @@ void NpcAgentDemoNode::build_scene() {
     hint_label->set_name("HintLabel");
     hint_label->set_position(
         godot::Vector2(16.0f, static_cast<float>(cfg_.scene.window_height) - 30.0f));
-    hint_label->set_text(godot::String::utf8(cfg_.fsm.enabled ? kHintTextFsm : kHintText));
+    const char* hint = kHintText;
+    if (!cfg_.scene.npcs.empty())
+        hint = kHintTextMulti;
+    else if (cfg_.fsm.enabled)
+        hint = kHintTextFsm;
+    hint_label->set_text(godot::String::utf8(hint));
     hint_label->set_modulate(godot::Color(0.7f, 0.7f, 0.7f, 1.0f));
     hint_label->set_visible(cfg_.scene.show_hint);
     add_child(hint_label);
+}
+
+void NpcAgentDemoNode::build_single_npc_scene(const WorldTransform& transform) {
+    // NPC：精灵 + 头顶气泡（默认隐藏，台词/表情时限时显示）。
+    npc_node_ = memnew(godot::Node2D);
+    npc_node_->set_name("Npc");
+    npc_node_->set_position(transform.to_pixel(cfg_.scene.npc_spawn));
+    add_child(npc_node_);
+    auto* npc_sprite = memnew(godot::Sprite2D);
+    npc_sprite->set_texture(godot::ResourceLoader::get_singleton()->load(kNpcSpritePath));
+    npc_node_->add_child(npc_sprite);
+    bubble_label_ = memnew(godot::Label);
+    bubble_label_->set_name("BubbleLabel");
+    bubble_label_->set_position(godot::Vector2(-160.0f, -72.0f));
+    bubble_label_->set_size(godot::Vector2(320.0f, 0.0f));
+    bubble_label_->set_horizontal_alignment(
+        godot::HorizontalAlignment::HORIZONTAL_ALIGNMENT_CENTER);
+    bubble_label_->set_visible(false);
+    npc_node_->add_child(bubble_label_);
 
     body_.bind(npc_node_, npc_sprite, bubble_label_, transform, cfg_.body);
 }
 
-void NpcAgentDemoNode::inject_player_distance() {
+void NpcAgentDemoNode::build_multi_npc_scene(const WorldTransform& transform) {
+    for (const auto& spec : cfg_.scene.npcs) {
+        NpcInstance npc;
+        npc.node = memnew(godot::Node2D);
+        npc.node->set_name(godot::String(spec.name.c_str()));
+        npc.node->set_position(transform.to_pixel(spec.spawn));
+        add_child(npc.node);
+        npc.sprite = memnew(godot::Sprite2D);
+        npc.sprite->set_texture(godot::ResourceLoader::get_singleton()->load(kNpcSpritePath));
+        npc.sprite->set_modulate(godot::Color(spec.tint[0], spec.tint[1], spec.tint[2], 1.0f));
+        npc.node->add_child(npc.sprite);
+        npc.bubble = memnew(godot::Label);
+        npc.bubble->set_position(godot::Vector2(-160.0f, -72.0f));
+        npc.bubble->set_size(godot::Vector2(320.0f, 0.0f));
+        npc.bubble->set_horizontal_alignment(
+            godot::HorizontalAlignment::HORIZONTAL_ALIGNMENT_CENTER);
+        npc.bubble->set_visible(false);
+        npc.node->add_child(npc.bubble);
+        npc.body.bind(npc.node, npc.sprite, npc.bubble, transform, cfg_.body);
+        npcs_.push_back(std::move(npc));
+    }
+}
+
+void NpcAgentDemoNode::inject_player_flags(core::Agent& agent, float near_distance) {
     const auto player_pos = world_.entity_pos("player");
     if (!player_pos.has_value())
         return;
-    const Vec3 npc_pos = body_.body_state().position;
+    const Vec3 npc_pos = agent.body_state().position;
     const float dx = player_pos->x - npc_pos.x;
     const float dy = player_pos->y - npc_pos.y;
     const float distance = std::sqrt(dx * dx + dy * dy);
-    agent_->blackboard().set("player_distance", distance);
-    if (cfg_.fsm.enabled) {
+    agent.blackboard().set("player_distance", distance);
+    if (near_distance >= 0.0f) {
         // FSM 条件旗标：玩家进入近距阈值（问候状态迁移条件）。
-        agent_->blackboard().set("player_near", distance <= cfg_.fsm.player_near_distance);
+        agent.blackboard().set("player_near", distance <= near_distance);
+    }
+}
+
+void NpcAgentDemoNode::propagate_shouts() {
+    // 宿主声学传播：NPC 的"呼叫支援"台词出现时广播 stimulus.shout（边沿触发，
+    // 台词离开后复位），其余 NPC 经感知模块 heard_shout 响应（R7-11 连锁反应）。
+    for (auto& npc : npcs_) {
+        if (!npc.shout_when_say)
+            continue;
+        bool shouting = false;
+        if (npc.agent->last_intent().has_value()) {
+            const auto& intent = *npc.agent->last_intent();
+            if (std::holds_alternative<SayIntent>(intent.payload)) {
+                const std::string& text = std::get<SayIntent>(intent.payload).text;
+                shouting = text.find(kShoutMarker) != std::string::npos;
+            }
+        }
+        if (shouting && !npc.shout_sent) {
+            const Vec3 pos = npc.agent->body_state().position;
+            Stimulus shout;
+            shout.type = "shout";
+            shout.position = pos;
+            shout.magnitude = 2.0f;
+            shout.source_id = std::string(npc.agent->id());
+            system_.inject_stimulus(shout);
+            npc.shout_sent = true;
+        } else if (!shouting) {
+            npc.shout_sent = false;
+        }
     }
 }
 
 void NpcAgentDemoNode::update_debug_label() {
-    nlohmann::json bb;
-    agent_->blackboard().to_json(bb);
     const TickContext tc = world_.tick_context();
-    const std::string text = "intent: " + testing::describe_intent(agent_->last_intent()) +
-                             "\ntick " + std::to_string(tc.tick_index) +
-                             "  t=" + std::to_string(tc.game_time) + "s\n" + bb.dump();
+    std::string text =
+        "tick " + std::to_string(tc.tick_index) + "  t=" + std::to_string(tc.game_time) + "s";
+    if (npcs_.empty()) {
+        nlohmann::json bb;
+        agent_->blackboard().to_json(bb);
+        text += "\n" + std::string(agent_->id()) +
+                ": intent: " + testing::describe_intent(agent_->last_intent()) + "\n" + bb.dump();
+    } else {
+        for (const auto& npc : npcs_) {
+            text += "\n" + std::string(npc.agent->id()) + ": " +
+                    testing::describe_intent(npc.agent->last_intent());
+        }
+    }
     debug_label_->set_text(godot::String::utf8(text.c_str()));
 }
 
