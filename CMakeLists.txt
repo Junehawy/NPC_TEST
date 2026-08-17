@@ -166,6 +166,7 @@ if(NPC_AGENT_BUILD_GODOT_DEMO)
   set_target_properties(npc_agent npc_agent_testing PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
   add_library(npc_agent_godot_demo SHARED
+    game_adapter/godot_demo/src/demo_config.cpp
     game_adapter/godot_demo/src/godot_world.cpp
     game_adapter/godot_demo/src/godot_body.cpp
     game_adapter/godot_demo/src/guard_patrol_decision.cpp

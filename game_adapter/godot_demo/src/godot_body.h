@@ -2,6 +2,7 @@
 // 把框架意图映射为场景动作——move_to 持续移动 NPC 精灵（到达后停下），
 // say/play_emote 显示头顶气泡标签（限时隐藏）。动作效果直接体现在场景中，
 // 故不再保留动作日志（测试断言用 MockBody，见 npc_agent/testing/）。
+// 气泡时长/到达阈值等行为参数来自 DemoConfig（BodyParams）。
 // 线程契约：全部方法【驱动线程】（Godot 主线程），与 IAgentBody 一致。
 #pragma once
 
@@ -11,6 +12,7 @@
 #include <godot_cpp/classes/node2d.hpp>
 #include <godot_cpp/classes/sprite2d.hpp>
 
+#include "demo_config.h"
 #include "godot_transform.h"
 #include "npc_agent/interfaces/i_agent_body.h"
 
@@ -18,9 +20,9 @@ namespace npc_agent::adapter::godot_demo {
 
 class GodotBody final : public IAgentBody {
 public:
-    // 绑定场景对象与坐标换算（演示装配期调用）。
+    // 绑定场景对象、坐标换算与行为参数（演示装配期调用）。
     void bind(godot::Node2D* npc, godot::Sprite2D* sprite, godot::Label* bubble,
-              WorldTransform transform);
+              WorldTransform transform, BodyParams params);
 
     // ---- IAgentBody（RA-§3.3） ----
     BodyState body_state() const override;
@@ -40,6 +42,7 @@ private:
     godot::Sprite2D* sprite_ = nullptr; // 朝向翻转目标（仅精灵，气泡不翻转）
     godot::Label* bubble_ = nullptr;
     WorldTransform transform_;
+    BodyParams params_;
     Vec3 move_target_{};
     float move_speed_ = 0.0f;
     bool moving_ = false;

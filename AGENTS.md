@@ -38,3 +38,6 @@
     启动日志含 `Using Device: Intel - Mesa Intel(R) UHD Graphics` 即核显生效；
     WASD 移动、空格枪声）
   - 无头冒烟：门禁第 5 步自动执行；手动：`godot --headless --path game_adapter/godot_demo --script res://scripts/smoke_test.gd --fixed-fps 60`
+  - 多配置冒烟：`smoke_alt.gd`（自定义文案/窗口/快巡逻，`-- --config res://assets/npcs/sample_guard_alt.json`）、
+    `smoke_bad.gd`（非法配置 fail-fast 负向测试，`-- --config res://assets/npcs/sample_guard_bad.json`）
+  - 演示参数全部在 `game_adapter/godot_demo/assets/npcs/*.json` 的 `extra.demo` 段（字段见 DemoConfig，未知键即报错）

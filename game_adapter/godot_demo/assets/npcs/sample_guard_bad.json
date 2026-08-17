@@ -1,0 +1,11 @@
+{
+  "id": "guard_bad",
+  "decision": "guard_patrol",
+  "rng_seed": 1,
+  "perception": { "radius": 2.0, "sense_type": "sight" },
+  "extra": {
+    "demo": {
+      "patrol_speed_typo": 99.0
+    }
+  }
+}

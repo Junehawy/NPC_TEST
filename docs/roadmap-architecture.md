@@ -613,5 +613,6 @@ NPC_TEST/
 | R7-6 共享工具 | 意图描述提取至 `npc_agent/testing/intent_desc`（无头示例与 Godot 演示共用，去重） |
 | R7-7 效果修复（用户反馈"效果不理想"） | 根因：① NPC 节点未设初始位置（渲染在屏幕左上角）；② 玩具抖动巡逻；③ 问候仅警戒期触发（提示语误导）。修复：初始站位=世界原点；waypoint 回路巡逻；巡逻在玩家可见时让位；窗口 960×540（软渲染流畅）；精灵朝向翻转；玩家边界钳制 |
 | R7-8 硬件渲染 | 本机 Optimus 双显卡（Intel UHD Graphics + NVIDIA MX250）：`scripts/run-godot-demo.sh` 显式选用核显 iris 驱动，无 /dev/dri 时回退 llvmpipe 并提示；验证日志 `Using Device: Intel - Mesa Intel(R) UHD Graphics`（沙箱环境需完整权限才能看到 /dev/dri，用户终端默认可用） |
+| R7-9 演示全参数化 | 全部演示行为参数收拢至 NPC 配置 `extra.demo` 段（DemoConfig fail-fast 解析：未知键/类型错误/非法值启动报错）：巡逻（回路/时间片/移速/让位开关）、警戒时长、问候（开关/文案/语气/优先级/触发距离）、惊吓（刺激类型/表情/优先级）、警戒表情、身体（气泡时长/到达阈值）、玩家（速度/边界）、场景（出生点/缩放/窗口尺寸/面板开关）；配置选择优先级：环境变量 `NPC_DEMO_CONFIG` → 命令行 `--config` → 默认；三套冒烟（默认/alt 自定义文案+窗口+快巡逻/非法配置 fail-fast）各多轮验证，Movie Maker 录帧量化验证 patrol.speed（319px/s vs 预期 320）与布局参数 |
 
 **历史对照（v0.1 → v0.2，摘要）**：接口层重构为 IWorld+IAgentBody 双接口、全 POD 契约类型、Intent variant+仲裁、ActionHandle 生命周期、领域动作走 dispatch_game_event、线程契约（主线程接口 + WorldSnapshot/AgentSnapshot 值语义 + 回调入队）、per-agent Agent + 全局 AgentSystem + scope 事件总线、TickContext、感知查询/推送分流、事件/黑板定界、DialogueSession、LLM 输出分级（Text/JsonSchema）、PromptBuilder/LLMGateway 列为模块且网关移入阶段 5、SocialGraph 世界级、EnTT 移除论证、BT 读档重置、Trace 录制回放、开关依赖闭包与超集约束、decision v1 互斥、序列化契约时机修正、阶段 5 拆出 5.5、MVP 减负。完整明细见 git 历史中 v0.2 版本文档的 §14。

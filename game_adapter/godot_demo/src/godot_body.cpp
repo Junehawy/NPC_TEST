@@ -4,18 +4,13 @@
 
 namespace npc_agent::adapter::godot_demo {
 
-namespace {
-constexpr double kArriveEpsilon = 0.05; // 到达判定（世界单位）
-constexpr double kSaySeconds = 2.5;     // 台词气泡时长
-constexpr double kEmoteSeconds = 1.2;   // 表情气泡时长
-} // namespace
-
 void GodotBody::bind(godot::Node2D* npc, godot::Sprite2D* sprite, godot::Label* bubble,
-                     WorldTransform transform) {
+                     WorldTransform transform, BodyParams params) {
     npc_ = npc;
     sprite_ = sprite;
     bubble_ = bubble;
     transform_ = transform;
+    params_ = params;
 }
 
 BodyState GodotBody::body_state() const {
@@ -34,16 +29,16 @@ ActionHandle GodotBody::move_to(Vec3 target, float speed) {
 
 ActionHandle GodotBody::play_emote(const std::string& name) {
     moving_ = false; // 惊吓语义：表情动作打断移动（演示约定）
-    show_bubble("❗ " + name, kEmoteSeconds);
+    show_bubble("❗ " + name, params_.emote_seconds);
     if (name == "startled")
-        emote_lock_left_ = kEmoteSeconds; // 惊吓展示期内台词不打断
+        emote_lock_left_ = params_.emote_seconds; // 惊吓展示期内台词不打断
     return ActionHandle{next_handle_++};
 }
 
 ActionHandle GodotBody::say(const DialogueLine& line) {
     moving_ = false;             // 交谈语义：说话时停下（玩家离开感知范围后巡逻恢复）
     if (emote_lock_left_ <= 0.0) // 惊吓展示锁生效时跳过，保证表情可见
-        show_bubble(line.text, kSaySeconds);
+        show_bubble(line.text, params_.say_seconds);
     return ActionHandle{next_handle_++};
 }
 
@@ -58,7 +53,7 @@ void GodotBody::update_movement(double dt) {
     const godot::Vector2 pos = npc_->get_position();
     const godot::Vector2 delta_px = target_px - pos;
     const float step = static_cast<float>(move_speed_ * transform_.scale * dt);
-    if (delta_px.length() <= step + kArriveEpsilon * transform_.scale) {
+    if (delta_px.length() <= step + params_.arrive_epsilon * transform_.scale) {
         npc_->set_position(target_px); // 最后一步直接吸附，避免抖动
         moving_ = false;
         return;

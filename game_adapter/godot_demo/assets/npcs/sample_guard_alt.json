@@ -1,35 +1,35 @@
 {
-  "id": "guard_1",
+  "id": "guard_alt",
   "decision": "guard_patrol",
-  "rng_seed": 42,
+  "rng_seed": 7,
   "perception": { "radius": 2.0, "sense_type": "sight" },
   "extra": {
     "demo": {
       "patrol": {
-        "waypoints": [[-3.0, 0.0, 0.0], [0.0, -1.5, 0.0], [3.0, 0.0, 0.0], [0.0, 1.5, 0.0]],
-        "walk_seconds": 2.5,
-        "rest_seconds": 1.0,
-        "speed": 2.0,
+        "waypoints": [[-2.0, 0.0, 0.0], [0.0, -1.0, 0.0], [2.0, 0.0, 0.0], [0.0, 1.0, 0.0]],
+        "walk_seconds": 1.0,
+        "rest_seconds": 0.5,
+        "speed": 4.0,
         "yield_on_player_seen": true
       },
-      "alarm_seconds": 3.0,
+      "alarm_seconds": 1.5,
       "greet": {
         "enabled": true,
-        "text": "你好，旅行者",
-        "tone": "friendly",
+        "text": "你好，哨兵先生",
+        "tone": "formal",
         "priority": 2.0,
         "max_distance": 2.0
       },
       "startle": { "stimulus_type": "gunshot", "emote": "startled", "priority": 5.0 },
       "alert": { "emote": "警戒", "priority": 1.5 },
-      "body": { "say_seconds": 2.5, "emote_seconds": 1.2, "arrive_epsilon": 0.05 },
-      "player": { "speed": 400.0, "clamp_margin": 24.0 },
+      "body": { "say_seconds": 1.0, "emote_seconds": 0.8, "arrive_epsilon": 0.1 },
+      "player": { "speed": 600.0, "clamp_margin": 32.0 },
       "scene": {
         "npc_spawn": [0.0, 0.0, 0.0],
         "player_spawn": [3.5, 0.0, 0.0],
-        "scale": 100.0,
-        "window_width": 960,
-        "window_height": 540,
+        "scale": 80.0,
+        "window_width": 800,
+        "window_height": 450,
         "show_debug": true,
         "show_hint": true
       }
