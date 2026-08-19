@@ -19,7 +19,7 @@
       },
       "scene": {
         "player_spawn": [
-          4.2,
+          3.6,
           0.0,
           0.0
         ],
@@ -32,7 +32,7 @@
           {
             "name": "guard",
             "spawn": [
-              -2.5,
+              -2.2,
               0.0,
               0.0
             ],
@@ -224,13 +224,14 @@
                 ]
               }
             },
-            "sprite": "res://assets/sprites/guard.svg"
+            "sprite": "res://assets/sprites/guard.svg",
+            "label": "守卫"
           },
           {
             "name": "medic",
             "spawn": [
-              3.5,
-              1.5,
+              2.9,
+              1.0,
               0.0
             ],
             "tint": [
@@ -335,11 +336,58 @@
                     "intent": {
                       "kind": "move_to",
                       "target": [
-                        1.0,
-                        0.6,
+                        0.4,
+                        -0.8,
                         0.0
                       ],
                       "speed": 2.5
+                    },
+                    "transitions": [
+                      {
+                        "target": "crouch",
+                        "condition": {
+                          "bb": {
+                            "heard_gunshot": true
+                          }
+                        }
+                      },
+                      {
+                        "target": "treat",
+                        "condition": {
+                          "bb": {
+                            "move_done": true
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "name": "treat",
+                    "priority": 3.0,
+                    "intent": {
+                      "kind": "emote",
+                      "name": "治疗"
+                    },
+                    "transitions": [
+                      {
+                        "target": "return_home",
+                        "condition": {
+                          "elapsed_ge": 2.0
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "name": "return_home",
+                    "priority": 2.5,
+                    "intent": {
+                      "kind": "move_to",
+                      "target": [
+                        2.9,
+                        1.0,
+                        0.0
+                      ],
+                      "speed": 1.5
                     },
                     "transitions": [
                       {
@@ -363,13 +411,14 @@
                 ]
               }
             },
-            "sprite": "res://assets/sprites/medic.svg"
+            "sprite": "res://assets/sprites/medic.svg",
+            "label": "支援兵"
           },
           {
             "name": "civilian",
             "spawn": [
-              -4.5,
-              1.8,
+              1.5,
+              2.2,
               0.0
             ],
             "tint": [
@@ -437,9 +486,64 @@
                         }
                       },
                       {
+                        "target": "market",
+                        "condition": {
+                          "bb": {
+                            "move_done": true
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "name": "market",
+                    "intent": {
+                      "kind": "move_to",
+                      "target": [
+                        1.0,
+                        2.4,
+                        0.0
+                      ],
+                      "speed": 1.0
+                    },
+                    "transitions": [
+                      {
+                        "target": "flee",
+                        "condition": {
+                          "bb": {
+                            "heard_gunshot": true
+                          }
+                        }
+                      },
+                      {
+                        "target": "browse",
+                        "condition": {
+                          "bb": {
+                            "move_done": true
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "name": "browse",
+                    "intent": {
+                      "kind": "emote",
+                      "name": "查看"
+                    },
+                    "transitions": [
+                      {
+                        "target": "flee",
+                        "condition": {
+                          "bb": {
+                            "heard_gunshot": true
+                          }
+                        }
+                      },
+                      {
                         "target": "wander2",
                         "condition": {
-                          "elapsed_ge": 2.0
+                          "elapsed_ge": 1.5
                         }
                       }
                     ]
@@ -449,8 +553,8 @@
                     "intent": {
                       "kind": "move_to",
                       "target": [
-                        -4.5,
-                        1.8,
+                        -1.5,
+                        2.4,
                         0.0
                       ],
                       "speed": 1.0
@@ -467,7 +571,9 @@
                       {
                         "target": "idle",
                         "condition": {
-                          "elapsed_ge": 2.0
+                          "bb": {
+                            "move_done": true
+                          }
                         }
                       }
                     ]
@@ -478,19 +584,35 @@
                     "intent": {
                       "kind": "move_to",
                       "target": [
-                        -4.5,
-                        -1.8,
+                        -4.6,
+                        -3.2,
                         0.0
                       ],
                       "speed": 3.0
                     },
                     "transitions": [
                       {
-                        "target": "idle",
+                        "target": "shelter",
                         "condition": {
                           "bb": {
                             "move_done": true
                           }
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "name": "shelter",
+                    "priority": 5.0,
+                    "intent": {
+                      "kind": "emote",
+                      "name": "发抖"
+                    },
+                    "transitions": [
+                      {
+                        "target": "wander1",
+                        "condition": {
+                          "elapsed_ge": 3.0
                         }
                       }
                     ]
@@ -525,7 +647,8 @@
                 ]
               }
             },
-            "sprite": "res://assets/sprites/civilian.svg"
+            "sprite": "res://assets/sprites/civilian.svg",
+            "label": "平民"
           }
         ],
         "map_enabled": true

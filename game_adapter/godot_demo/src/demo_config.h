@@ -72,7 +72,8 @@ struct FsmDemoParams {
 
 // 单个 NPC 规格（多 NPC 场景模式，R7-11）。
 struct NpcSpec {
-    std::string name;                                    // 节点名 + Agent id（场景内唯一）
+    std::string name;                                    // 节点名 + Agent id（场景内唯一，ASCII）
+    std::string label;                                   // 显示名（中文名牌/面板，缺省=name）
     Vec3 spawn{};                                        // 出生点（世界坐标）
     std::vector<float> tint{0.29f, 0.5f, 0.83f};         // 精灵调制色（RGB 0~1）
     std::string sprite = "res://assets/sprites/npc.svg"; // 精灵贴图路径（区分造型）

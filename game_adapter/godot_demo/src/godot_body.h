@@ -23,8 +23,10 @@ namespace npc_agent::adapter::godot_demo {
 class GodotBody final : public IAgentBody {
 public:
     // 绑定场景对象、坐标换算与行为参数（演示装配期调用）。
+    // base_scale：精灵基础缩放（演示缩到 0.75，使 NPC 不贴障碍物穿模）；
+    // 朝向翻转在此基础上乘以 ±1（不覆盖用户缩放）。
     void bind(godot::Node2D* npc, godot::Sprite2D* sprite, godot::Label* bubble,
-              WorldTransform transform, BodyParams params);
+              WorldTransform transform, BodyParams params, float base_scale = 1.0f);
 
     // ---- IAgentBody（RA-§3.3） ----
     BodyState body_state() const override;
@@ -62,6 +64,7 @@ private:
     godot::Label* bubble_ = nullptr;
     WorldTransform transform_;
     BodyParams params_;
+    float base_scale_ = 1.0f;
     std::function<bool(Vec3)> blocked_check_; // 宿主碰撞检查（空 = 不检查）
     std::vector<Vec3> path_{};                // 当前路径航点（世界坐标；move_to 时为单点）
     std::size_t path_index_ = 0;

@@ -56,6 +56,7 @@ private:
         bool shout_sent = false; // 呼叫支援台词已转发为 stimulus.shout（边沿触发）
         bool shout_when_say = false;
         float player_near_distance = 2.0f;         // 近距阈值（规格注入）
+        std::string label;                         // 显示名（中文名牌/面板，规格注入）
         std::vector<godot::ColorRect*> path_dots;  // 路线可视化航点标记（阶段 3，R10）
         godot::ColorRect* target_marker = nullptr; // 当前移动目标标记
     };

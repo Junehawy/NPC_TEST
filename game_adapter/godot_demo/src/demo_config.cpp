@@ -272,7 +272,7 @@ bool parse_player(const json& obj, PlayerParams& out, std::string& err) {
 
 bool parse_npc(const json& obj, NpcSpec& out, std::string& err) {
     static constexpr std::array<std::string_view, 8> kKeys = {
-        "name", "spawn", "tint", "sprite", "rng_seed", "shout_when_say", "fsm"};
+        "name", "label", "spawn", "tint", "sprite", "rng_seed", "shout_when_say", "fsm"};
     if (!check_known_keys(obj, "scene.npcs[]", kKeys, err))
         return false;
     if (auto it = obj.find("name"); it != obj.end()) {
@@ -284,6 +284,15 @@ bool parse_npc(const json& obj, NpcSpec& out, std::string& err) {
     } else {
         err = "demo 配置字段 scene.npcs[].name 缺失";
         return false;
+    }
+    if (auto it = obj.find("label"); it != obj.end()) {
+        if (!get_string(*it, "scene.npcs[].label", out.label, err) || out.label.empty()) {
+            if (err.empty())
+                err = "demo 配置字段 scene.npcs[].label 应为非空字符串";
+            return false;
+        }
+    } else {
+        out.label = out.name; // 缺省显示名 = id
     }
     if (auto it = obj.find("spawn"); it != obj.end()) {
         if (!get_vec3(*it, "scene.npcs[].spawn", out.spawn, err))

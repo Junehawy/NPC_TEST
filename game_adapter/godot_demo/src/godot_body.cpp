@@ -6,12 +6,14 @@
 namespace npc_agent::adapter::godot_demo {
 
 void GodotBody::bind(godot::Node2D* npc, godot::Sprite2D* sprite, godot::Label* bubble,
-                     WorldTransform transform, BodyParams params) {
+                     WorldTransform transform, BodyParams params, float base_scale) {
     npc_ = npc;
     sprite_ = sprite;
     bubble_ = bubble;
     transform_ = transform;
     params_ = params;
+    base_scale_ = base_scale;
+    sprite_->set_scale(godot::Vector2(base_scale_, base_scale_));
 }
 
 BodyState GodotBody::body_state() const {
@@ -75,7 +77,8 @@ void GodotBody::update_movement(double dt) {
     const float step = static_cast<float>(move_speed_ * transform_.scale * dt);
     // 朝向：沿移动方向翻转精灵（仅精灵，气泡保持正向可读）。
     if (std::abs(delta_px.x) > 0.001f)
-        sprite_->set_scale(godot::Vector2(delta_px.x > 0.0f ? 1.0f : -1.0f, 1.0f));
+        sprite_->set_scale(
+            godot::Vector2(delta_px.x > 0.0f ? base_scale_ : -base_scale_, base_scale_));
     if (delta_px.length() <= step + params_.arrive_epsilon * transform_.scale) {
         // 到达当前航点：目标位置被阻塞（重规划尚未生效）则原地停下，不穿行。
         if (blocked_check_ && blocked_check_(path_[path_index_])) {

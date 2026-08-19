@@ -59,9 +59,19 @@ struct MapBuilding {
 const MapBuilding kBuildings[] = {
     {-1.0f, -0.6f, 0.8f, 1.2f, godot::Color(0.55f, 0.35f, 0.25f, 1.0f)}, // 挡守卫巡逻
     {0.2f, -0.6f, 0.8f, 1.2f, godot::Color(0.45f, 0.45f, 0.52f, 1.0f)},  // 挡守卫搜寻
-    {-2.8f, 1.2f, 1.2f, 0.9f, godot::Color(0.62f, 0.52f, 0.30f, 1.0f)},  // 装饰
+    {-2.8f, 1.2f, 1.2f, 0.9f, godot::Color(0.62f, 0.52f, 0.30f, 1.0f)},  // 市集棚
     {1.2f, 0.7f, 1.2f, 1.0f, godot::Color(0.50f, 0.32f, 0.28f, 1.0f)},   // 挡支援兵响应
-    {-4.6f, -2.4f, 1.5f, 1.0f, godot::Color(0.36f, 0.36f, 0.40f, 1.0f)}, // 装饰
+    {-4.6f, -2.4f, 1.5f, 1.0f, godot::Color(0.36f, 0.36f, 0.40f, 1.0f)}, // 石屋
+    {-4.6f, 2.2f, 1.2f, 0.8f, godot::Color(0.40f, 0.30f, 0.22f, 1.0f)},  // 木屋
+    {2.6f, -2.2f, 1.2f, 0.8f, godot::Color(0.45f, 0.42f, 0.36f, 1.0f)},  // 仓库
+};
+
+// 池塘（障碍，蓝色）与围墙（障碍，灰色细带）——丰富地图层次（R10）。
+const MapBuilding kPond[] = {
+    {-3.6f, -1.8f, 1.0f, 0.7f, godot::Color(0.24f, 0.45f, 0.75f, 1.0f)},
+};
+const MapBuilding kFence[] = {
+    {-4.8f, 3.2f, 9.6f, 0.16f, godot::Color(0.52f, 0.48f, 0.42f, 1.0f)},
 };
 } // namespace
 
@@ -118,10 +128,18 @@ void NpcAgentDemoNode::_process(double delta) {
         for (auto& npc : npcs_)
             inject_player_flags(*npc.agent, npc.player_near_distance);
     }
+    // R10 到达回投：先于 tick 消费身体到达标志并回报动作完成。若放在 tick 之后，
+    // FSM 每 tick 重发同一移动意图会经 execute→move_to 重置到达标志（丢失 move_done）。
+    if (!npcs_.empty()) {
+        for (auto& npc : npcs_) {
+            if (npc.body.consume_arrival())
+                npc.agent->report_action_result(npc.body.last_move_handle(), "completed");
+        }
+    }
     system_.tick();
     if (!npcs_.empty()) {
         propagate_shouts();      // 呼叫支援台词 → stimulus.shout（连锁反应）
-        plan_paths_and_report(); // 移动意图 → A* 路径注入 + 到达回投（阶段 3）
+        plan_paths_and_report(); // 移动意图 → A* 路径注入（阶段 3）
     }
     update_debug_label(); // 演示规模：每帧刷新面板，保证瞬时意图可见
 }
@@ -239,6 +257,7 @@ bool NpcAgentDemoNode::setup_multi_npc() {
         npc.agent = &system_.create_agent(std::move(cfg), npc.body);
         npc.shout_when_say = spec.shout_when_say;
         npc.player_near_distance = spec.fsm.player_near_distance;
+        npc.label = spec.label; // 中文显示名（名牌/面板）
 
         decision::FsmDefinition fsm_def;
         if (auto err = decision::parse_fsm_definition(spec.fsm.definition, fsm_def);
@@ -307,6 +326,7 @@ void NpcAgentDemoNode::build_scene() {
     }
     auto* player_sprite = memnew(godot::Sprite2D);
     player_sprite->set_texture(godot::ResourceLoader::get_singleton()->load(kPlayerSpritePath));
+    player_sprite->set_scale(godot::Vector2(0.75f, 0.75f));
     player_node_->add_child(player_sprite);
     add_child(player_node_);
     world_.add_entity("player", player_node_);
@@ -441,11 +461,9 @@ void NpcAgentDemoNode::draw_map(int width, int height) {
     }
 
     // 树木：八边形树冠 + 树桩（世界坐标，装饰非障碍）。
-    const Vec3 kTreePos[] = {{-4.2f, -1.8f, 0.0f},
-                             {-3.4f, 2.6f, 0.0f},
-                             {4.4f, -2.2f, 0.0f},
-                             {5.6f, 2.4f, 0.0f},
-                             {-1.6f, -2.2f, 0.0f}};
+    const Vec3 kTreePos[] = {{-4.2f, -1.8f, 0.0f}, {-3.4f, 2.6f, 0.0f},  {4.4f, -2.2f, 0.0f},
+                             {5.6f, 2.4f, 0.0f},   {-1.6f, -2.2f, 0.0f}, {-0.4f, 2.9f, 0.0f},
+                             {3.8f, 2.8f, 0.0f},   {5.8f, -2.6f, 0.0f},  {-2.2f, -2.8f, 0.0f}};
     for (const auto& tree : kTreePos) {
         const float tx = center_x + tree.x * scale;
         const float ty = center_y + tree.y * scale;
@@ -516,21 +534,26 @@ void NpcAgentDemoNode::register_map_obstacles(int width, int height) {
     // 建筑（世界坐标）→ 网格单元阻塞（与 draw_map 同一张表，R10）。
     (void)width;
     (void)height;
-    for (const auto& b : kBuildings) {
+    const auto register_rect = [this](const MapBuilding& b) {
         const auto min_cell = grid_.world_to_cell(Vec3{b.x, b.y, 0.0f});
         const auto max_cell = grid_.world_to_cell(Vec3{b.x + b.w, b.y + b.h, 0.0f});
         if (!min_cell.has_value() || !max_cell.has_value())
-            continue;
+            return;
         grid_.block_rect(min_cell->first, min_cell->second, max_cell->first, max_cell->second);
-    }
+    };
+    for (const auto& b : kBuildings)
+        register_rect(b);
+    for (const auto& b : kPond)
+        register_rect(b);
+    for (const auto& b : kFence)
+        register_rect(b);
 }
 
 void NpcAgentDemoNode::plan_paths_and_report() {
-    // 阶段 3（R10）：① 身体走完路径 → 报告动作完成（move_done 驱动 FSM）；
-    // ② 新移动意图 → 经 world_.find_path（GridNav A*）注入航点。
+    // 阶段 3（R10）：新移动意图 → 经 world_.find_path（GridNav A*）注入航点，
+    // 并刷新路线可视化。到达回投见 _process（tick 前消费，R10 修复——
+    // FSM 每 tick 重发同一移动意图会经 execute→move_to 重置到达标志）。
     for (auto& npc : npcs_) {
-        if (npc.body.consume_arrival())
-            npc.agent->report_action_result(npc.body.last_move_handle(), "completed");
         const auto& intent = npc.agent->last_intent();
         if (intent.has_value() && std::holds_alternative<MoveIntent>(intent->payload)) {
             const auto& move = std::get<MoveIntent>(intent->payload);
@@ -621,8 +644,7 @@ void NpcAgentDemoNode::update_debug_label() {
                 ": intent: " + testing::describe_intent(agent_->last_intent()) + "\n" + bb.dump();
     } else {
         for (const auto& npc : npcs_) {
-            text += "\n" + std::string(npc.agent->id()) + ": " +
-                    testing::describe_intent(npc.agent->last_intent());
+            text += "\n" + npc.label + ": " + testing::describe_intent(npc.agent->last_intent());
         }
     }
     debug_label_->set_text(godot::String::utf8(text.c_str()));

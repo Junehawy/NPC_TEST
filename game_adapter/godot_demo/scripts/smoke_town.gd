@@ -1,7 +1,7 @@
 extends SceneTree
 ## 多 NPC 场景无头冒烟（R7-11 连锁反应，TS-§3 scenarios 行）：加载主场景（--config 指向
 ## sample_town.json），校验枪声触发的三 NPC 连锁时间线——
-##   1) 初始：守卫巡逻（guard: MoveIntent）；
+##   1) 初始：守卫巡逻（守卫: MoveIntent）；
 ##   2) 枪声 → 守卫警戒 + 平民逃窜（逃往 -4.5,-1.8）+ 支援兵隐蔽；
 ##   3) 守卫呼叫支援台词 → 吼叫传播 → 支援兵响应（跑向集合点 1.0,0.6）；
 ##   4) 守卫搜寻（MoveIntent → 3.0）；
@@ -50,17 +50,17 @@ func _process(_delta: float) -> bool:
 	if frames >= 601 and frames <= 640:
 		reshot_snapshots.append(label)
 	if frames == 640:
-		var ok_patrol := _any_contains(patrol_snapshots, "guard: MoveIntent")
-		var ok_alert := _any_contains(gunshot_snapshots, "guard: EmoteIntent → startled")
-		var ok_flee := _any_contains(gunshot_snapshots, "civilian: MoveIntent → (-4.500000")
-		var ok_crouch := _any_contains(gunshot_snapshots, "medic: EmoteIntent")
-		var ok_call := _any_contains(shout_snapshots, "guard: SayIntent → \"呼叫支援")
-		var ok_respond := _any_contains(shout_snapshots, "medic: MoveIntent → (1.000000")
-		var ok_search := _any_contains(search_snapshots, "guard: MoveIntent → (2.200000")
-		var ok_greet := _any_contains(greet_snapshots, "guard: SayIntent → \"你好")
-		var ok_reshot_alert := _any_contains(reshot_snapshots, "guard: EmoteIntent → startled")
-		var ok_reshot_flee := _any_contains(reshot_snapshots, "civilian: MoveIntent → (-4.500000")
-		var ok_reshot_crouch := _any_contains(reshot_snapshots, "medic: EmoteIntent")
+		var ok_patrol := _any_contains(patrol_snapshots, "守卫: MoveIntent")
+		var ok_alert := _any_contains(gunshot_snapshots, "守卫: EmoteIntent → startled")
+		var ok_flee := _any_contains(gunshot_snapshots, "平民: MoveIntent → (-4.600000")
+		var ok_crouch := _any_contains(gunshot_snapshots, "支援兵: EmoteIntent")
+		var ok_call := _any_contains(shout_snapshots, "守卫: SayIntent → \"呼叫支援")
+		var ok_respond := _any_contains(shout_snapshots, "支援兵: MoveIntent → (0.400000")
+		var ok_search := _any_contains(search_snapshots, "守卫: MoveIntent → (2.200000")
+		var ok_greet := _any_contains(greet_snapshots, "守卫: SayIntent → \"你好")
+		var ok_reshot_alert := _any_contains(reshot_snapshots, "守卫: EmoteIntent → startled")
+		var ok_reshot_flee := _any_contains(reshot_snapshots, "平民: MoveIntent → (-4.600000")
+		var ok_reshot_crouch := _any_contains(reshot_snapshots, "支援兵: EmoteIntent")
 		if ok_patrol and ok_alert and ok_flee and ok_crouch and ok_call and ok_respond \
 				and ok_search and ok_greet and ok_reshot_alert and ok_reshot_flee \
 				and ok_reshot_crouch:
