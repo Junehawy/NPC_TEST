@@ -24,8 +24,8 @@
           0.0
         ],
         "scale": 100.0,
-        "window_width": 960,
-        "window_height": 540,
+        "window_width": 1280,
+        "window_height": 720,
         "show_debug": true,
         "show_hint": true,
         "npcs": [

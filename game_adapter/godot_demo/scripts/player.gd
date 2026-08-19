@@ -20,7 +20,13 @@ func _process(delta: float) -> void:
 	if Input.is_physical_key_pressed(KEY_D):
 		dir.x += 1.0
 	if dir != Vector2.ZERO:
-		position += dir.normalized() * speed * delta
+		var next := position + dir.normalized() * speed * delta
+		# 碰撞语义（阶段 3，R10）：目标像素落在阻塞单元（建筑/木箱）则原地不动。
+		var demo := get_tree().get_first_node_in_group("npc_demo")
+		if demo.is_pixel_blocked(next.x, next.y):
+			pass
+		else:
+			position = next
 	position.x = clampf(position.x, clamp_margin, clamp_size.x - clamp_margin)
 	position.y = clampf(position.y, clamp_margin, clamp_size.y - clamp_margin)
 

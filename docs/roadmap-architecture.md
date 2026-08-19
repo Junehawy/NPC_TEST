@@ -646,5 +646,6 @@ NPC_TEST/
 | R10-3 宿主异步化策略（开放问题 #10 定案） | 框架保持 §3.2 契约；宿主务实策略：导航缓存（障碍版本号失效）/ A* 时间片 / 快照入队；演示规模无需异步（见 §13 #10） |
 | R10-4 Godot 接入 | GodotWorld 委托 GridNav（建筑→网格障碍）；GodotBody 路径跟随（set_path 航点、逐段到达、consume_arrival + last_move_handle）；演示节点每帧移动意图→A* 航点注入、到达回投 action.completed、E 键放置障碍触发移动中 NPC 重规划；town 巡逻/响应/逃窜改为 move_done 到达驱动 |
 | R10-5 can_reach 语义 | 同单元 = 可达（已就位）；起终点阻塞/不可达 = false |
+| R10-6 演示效果修复（用户反馈"障碍无效果/无碰撞/窗口小/功能不明显"） | 根因：地图建筑在角落，NPC 路线（y=0 直线）不经过任何障碍 → 绕行从未触发。修复：①建筑改世界坐标布局并刻意挡在 NPC 主路线（两栋挡 y=0 巡逻/搜寻线、一栋挡支援兵响应线，draw_map 与网格注册共用同一张表）；②碰撞机制——GodotBody 阻塞位置检查（NPC 不穿建筑/木箱）、玩家 is_pixel_blocked 移动前拦截；③路线可视化——航点蓝点 + 目标亮框（寻路/绕行肉眼可见）；④town 窗口 1280×720；⑤E 放置木箱修正半单元偏移；⑥提示语说明操作 |
 
 **历史对照（v0.1 → v0.2，摘要）**：接口层重构为 IWorld+IAgentBody 双接口、全 POD 契约类型、Intent variant+仲裁、ActionHandle 生命周期、领域动作走 dispatch_game_event、线程契约（主线程接口 + WorldSnapshot/AgentSnapshot 值语义 + 回调入队）、per-agent Agent + 全局 AgentSystem + scope 事件总线、TickContext、感知查询/推送分流、事件/黑板定界、DialogueSession、LLM 输出分级（Text/JsonSchema）、PromptBuilder/LLMGateway 列为模块且网关移入阶段 5、SocialGraph 世界级、EnTT 移除论证、BT 读档重置、Trace 录制回放、开关依赖闭包与超集约束、decision v1 互斥、序列化契约时机修正、阶段 5 拆出 5.5、MVP 减负。完整明细见 git 历史中 v0.2 版本文档的 §14。

@@ -6,6 +6,7 @@
 // 线程契约：全部方法【驱动线程】（Godot 主线程），与 IAgentBody 一致。
 #pragma once
 
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -46,8 +47,12 @@ public:
 
     // 路径观测（宿主重规划用，阶段 3）。
     bool is_moving() const;
-    Vec3 path_target() const; // 当前路径终点（无路径返回零向量）
+    const std::vector<Vec3>& path() const; // 当前航点序列
+    Vec3 path_target() const;              // 当前路径终点（无路径返回零向量）
     float move_speed() const;
+
+    // 宿主碰撞检查（阶段 3，R10）：非空时移动不得进入阻塞位置（停止而非穿行）。
+    void set_blocked_check(std::function<bool(Vec3 world)> check);
 
 private:
     void show_bubble(const std::string& text, double seconds); // 气泡显示限时
@@ -57,7 +62,8 @@ private:
     godot::Label* bubble_ = nullptr;
     WorldTransform transform_;
     BodyParams params_;
-    std::vector<Vec3> path_{}; // 当前路径航点（世界坐标；move_to 时为单点）
+    std::function<bool(Vec3)> blocked_check_; // 宿主碰撞检查（空 = 不检查）
+    std::vector<Vec3> path_{};                // 当前路径航点（世界坐标；move_to 时为单点）
     std::size_t path_index_ = 0;
     float move_speed_ = 0.0f;
     bool moving_ = false;

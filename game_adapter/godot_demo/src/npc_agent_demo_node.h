@@ -13,6 +13,7 @@
 #include <string>
 #include <vector>
 
+#include <godot_cpp/classes/color_rect.hpp>
 #include <godot_cpp/classes/label.hpp>
 #include <godot_cpp/classes/node.hpp>
 #include <godot_cpp/classes/node2d.hpp>
@@ -38,6 +39,9 @@ public:
     // 玩家放置障碍（GDScript 调用，E 键）：阻塞网格 + 视觉方块 + 移动中 NPC 重规划。
     void place_obstacle();
 
+    // 玩家碰撞查询（GDScript 调用）：像素位置是否落在阻塞单元（player.gd 移动前检查）。
+    bool is_pixel_blocked(float px, float py);
+
 protected:
     static void _bind_methods();
 
@@ -51,7 +55,9 @@ private:
         GodotBody body;
         bool shout_sent = false; // 呼叫支援台词已转发为 stimulus.shout（边沿触发）
         bool shout_when_say = false;
-        float player_near_distance = 2.0f; // 近距阈值（规格注入）
+        float player_near_distance = 2.0f;         // 近距阈值（规格注入）
+        std::vector<godot::ColorRect*> path_dots;  // 路线可视化航点标记（阶段 3，R10）
+        godot::ColorRect* target_marker = nullptr; // 当前移动目标标记
     };
 
     std::string resolve_config_path() const; // 命令行 --config 覆盖 / 默认路径
@@ -65,7 +71,8 @@ private:
     void draw_map(int width, int height);               // 装饰地图（地面/道路/建筑/树木，R7-12）
     void register_map_obstacles(int width, int height); // 建筑→网格障碍（阶段 3）
     void plan_paths_and_report(); // 移动意图→A* 路径注入 + 到达回投（阶段 3，R10）
-    void update_debug_label();    // 调试面板刷新（多 NPC 逐行）
+    void update_path_visual(NpcInstance& npc, const std::vector<Vec3>& path); // 路线标记刷新
+    void update_debug_label(); // 调试面板刷新（多 NPC 逐行）
     void inject_player_flags(core::Agent& agent, float near_distance); // 距离/近距旗标
     void propagate_shouts();                 // 呼叫支援台词 → stimulus.shout（声学传播）
     void log_status(const std::string& msg); // 启动状态输出（控制台）

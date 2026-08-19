@@ -43,9 +43,26 @@ constexpr const char* kHintText = "WASD 移动 · 空格 枪声刺激 · 靠近 
 constexpr const char* kHintTextFsm =
     "阶段 2 FSM：WASD 移动 · 空格 枪声 → 警戒 → 呼叫支援 → 搜寻 · 靠近触发问候";
 constexpr const char* kHintTextMulti =
-    "阶段 3 多NPC：WASD 移动 · 空格 枪声 · E 放置障碍（NPC 绕行）· 靠近问候";
+    "阶段 3 多NPC：WASD 移动（撞墙停）· 空格 枪声 · E 放木箱 → NPC 绕行（蓝点=路线）· 靠近问候";
 
 constexpr const char* kShoutMarker = "呼叫支援"; // 台词标记（宿主声学传播触发条件）
+
+// 地图建筑（世界坐标矩形 x,y,w,h）：两栋挡在 y=0 主路线（守卫巡逻/搜寻必经），
+// 一栋挡在支援兵响应路线，其余为装饰——寻路绕行因此可见（R10）。
+struct MapBuilding {
+    float x;
+    float y;
+    float w;
+    float h;
+    godot::Color color;
+};
+const MapBuilding kBuildings[] = {
+    {-1.0f, -0.6f, 0.8f, 1.2f, godot::Color(0.55f, 0.35f, 0.25f, 1.0f)}, // 挡守卫巡逻
+    {0.2f, -0.6f, 0.8f, 1.2f, godot::Color(0.45f, 0.45f, 0.52f, 1.0f)},  // 挡守卫搜寻
+    {-2.8f, 1.2f, 1.2f, 0.9f, godot::Color(0.62f, 0.52f, 0.30f, 1.0f)},  // 装饰
+    {1.2f, 0.7f, 1.2f, 1.0f, godot::Color(0.50f, 0.32f, 0.28f, 1.0f)},   // 挡支援兵响应
+    {-4.6f, -2.4f, 1.5f, 1.0f, godot::Color(0.36f, 0.36f, 0.40f, 1.0f)}, // 装饰
+};
 } // namespace
 
 void NpcAgentDemoNode::_bind_methods() {
@@ -53,6 +70,8 @@ void NpcAgentDemoNode::_bind_methods() {
                                 &NpcAgentDemoNode::inject_gunshot);
     godot::ClassDB::bind_method(godot::D_METHOD("place_obstacle"),
                                 &NpcAgentDemoNode::place_obstacle);
+    godot::ClassDB::bind_method(godot::D_METHOD("is_pixel_blocked"),
+                                &NpcAgentDemoNode::is_pixel_blocked);
 }
 
 void NpcAgentDemoNode::_ready() {
@@ -364,13 +383,37 @@ void NpcAgentDemoNode::build_multi_npc_scene(const WorldTransform& transform) {
         npc.bubble->set_visible(false);
         npc.node->add_child(npc.bubble);
         npc.body.bind(npc.node, npc.sprite, npc.bubble, transform, cfg_.body);
+        // 碰撞检查（R10）：移动不得进入阻塞单元（NPC 不穿墙/木箱）。
+        npc.body.set_blocked_check([this](Vec3 world) {
+            const auto cell = grid_.world_to_cell(world);
+            return cell.has_value() && grid_.is_blocked(cell->first, cell->second);
+        });
+        // 路线可视化节点：最多 32 个航点蓝点 + 1 个目标亮框。
+        constexpr std::size_t kMaxDots = 32;
+        npc.path_dots.reserve(kMaxDots);
+        for (std::size_t i = 0; i < kMaxDots; ++i) {
+            auto* dot = memnew(godot::ColorRect);
+            dot->set_size(godot::Vector2(8.0f, 8.0f));
+            dot->set_color(godot::Color(0.4f, 0.8f, 1.0f, 0.9f));
+            dot->set_visible(false);
+            add_child(dot);
+            npc.path_dots.push_back(dot);
+        }
+        npc.target_marker = memnew(godot::ColorRect);
+        npc.target_marker->set_size(godot::Vector2(14.0f, 14.0f));
+        npc.target_marker->set_color(godot::Color(1.0f, 0.5f, 0.2f, 1.0f));
+        npc.target_marker->set_visible(false);
+        add_child(npc.target_marker);
         npcs_.push_back(std::move(npc));
     }
 }
 
 void NpcAgentDemoNode::draw_map(int width, int height) {
-    // 装饰地图（R7-12）：纯视觉分层，无碰撞（碰撞/寻路属阶段 3）。
-    // 建筑与树木布置在边缘/上侧，避开 NPC 巡逻路径（中央与横向路线）。
+    // 装饰地图（R7-12）：纯视觉分层；建筑为真实障碍（register_map_obstacles）。
+    const float center_x = static_cast<float>(width) / 2.0f;
+    const float center_y = static_cast<float>(height) / 2.0f;
+    const float scale = cfg_.scene.scale;
+
     auto* ground = memnew(godot::ColorRect);
     ground->set_position(godot::Vector2(0.0f, 0.0f));
     ground->set_size(godot::Vector2(static_cast<float>(width), static_cast<float>(height)));
@@ -388,46 +431,37 @@ void NpcAgentDemoNode::draw_map(int width, int height) {
     road_line->set_color(godot::Color(0.85f, 0.83f, 0.55f, 1.0f)); // 中线
     add_child(road_line);
 
-    // 建筑（左上/右上/左下/右下 + 中上塔楼）。
-    const struct {
-        float x;
-        float y;
-        float w;
-        float h;
-        godot::Color color;
-    } kBuildings[] = {
-        {40.0f, 50.0f, 140.0f, 120.0f, godot::Color(0.55f, 0.35f, 0.25f, 1.0f)},
-        {700.0f, 40.0f, 180.0f, 110.0f, godot::Color(0.45f, 0.45f, 0.52f, 1.0f)},
-        {60.0f, 380.0f, 150.0f, 100.0f, godot::Color(0.62f, 0.52f, 0.30f, 1.0f)},
-        {760.0f, 400.0f, 140.0f, 90.0f, godot::Color(0.50f, 0.32f, 0.28f, 1.0f)},
-        {420.0f, 55.0f, 110.0f, 80.0f, godot::Color(0.36f, 0.36f, 0.40f, 1.0f)},
-    };
+    // 建筑：世界坐标 → 像素（与 register_map_obstacles 同一张表，位置自适应窗口）。
     for (const auto& b : kBuildings) {
         auto* building = memnew(godot::ColorRect);
-        building->set_position(godot::Vector2(b.x, b.y));
-        building->set_size(godot::Vector2(b.w, b.h));
+        building->set_position(godot::Vector2(center_x + b.x * scale, center_y + b.y * scale));
+        building->set_size(godot::Vector2(b.w * scale, b.h * scale));
         building->set_color(b.color);
         add_child(building);
     }
 
-    // 树木：八边形树冠 + 树桩。
-    const float kTreeX[] = {240.0f, 640.0f, 820.0f, 100.0f, 520.0f};
-    const float kTreeY[] = {90.0f, 110.0f, 150.0f, 475.0f, 470.0f};
-    for (std::size_t i = 0; i < std::size(kTreeX); ++i) {
+    // 树木：八边形树冠 + 树桩（世界坐标，装饰非障碍）。
+    const Vec3 kTreePos[] = {{-4.2f, -1.8f, 0.0f},
+                             {-3.4f, 2.6f, 0.0f},
+                             {4.4f, -2.2f, 0.0f},
+                             {5.6f, 2.4f, 0.0f},
+                             {-1.6f, -2.2f, 0.0f}};
+    for (const auto& tree : kTreePos) {
+        const float tx = center_x + tree.x * scale;
+        const float ty = center_y + tree.y * scale;
         auto* crown = memnew(godot::Polygon2D);
         godot::PackedVector2Array points;
         constexpr int kSides = 8;
         for (int s = 0; s < kSides; ++s) {
             const double angle = 2.0 * 3.141592653589793 * s / kSides;
-            points.push_back(
-                godot::Vector2(kTreeX[i] + static_cast<float>(std::cos(angle)) * 26.0f,
-                               kTreeY[i] + static_cast<float>(std::sin(angle)) * 26.0f));
+            points.push_back(godot::Vector2(tx + static_cast<float>(std::cos(angle)) * 26.0f,
+                                            ty + static_cast<float>(std::sin(angle)) * 26.0f));
         }
         crown->set_polygon(points);
         crown->set_color(godot::Color(0.14f, 0.45f, 0.16f, 1.0f));
         add_child(crown);
         auto* trunk = memnew(godot::ColorRect);
-        trunk->set_position(godot::Vector2(kTreeX[i] - 4.0f, kTreeY[i] + 22.0f));
+        trunk->set_position(godot::Vector2(tx - 4.0f, ty + 22.0f));
         trunk->set_size(godot::Vector2(8.0f, 14.0f));
         trunk->set_color(godot::Color(0.38f, 0.27f, 0.16f, 1.0f));
         add_child(trunk);
@@ -479,26 +513,15 @@ void NpcAgentDemoNode::propagate_shouts() {
 }
 
 void NpcAgentDemoNode::register_map_obstacles(int width, int height) {
-    // 建筑像素矩形 → 网格单元阻塞（与 draw_map 同一张表；像素/（scale*cell）即单元）。
-    const float px_per_cell = cfg_.scene.scale * grid_.cell_size();
-    const struct {
-        float x;
-        float y;
-        float w;
-        float h;
-    } kBuildings[] = {
-        {40.0f, 50.0f, 140.0f, 120.0f},  {700.0f, 40.0f, 180.0f, 110.0f},
-        {60.0f, 380.0f, 150.0f, 100.0f}, {760.0f, 400.0f, 140.0f, 90.0f},
-        {420.0f, 55.0f, 110.0f, 80.0f},
-    };
+    // 建筑（世界坐标）→ 网格单元阻塞（与 draw_map 同一张表，R10）。
     (void)width;
     (void)height;
     for (const auto& b : kBuildings) {
-        const int c0 = static_cast<int>(b.x / px_per_cell);
-        const int r0 = static_cast<int>(b.y / px_per_cell);
-        const int c1 = static_cast<int>((b.x + b.w) / px_per_cell);
-        const int r1 = static_cast<int>((b.y + b.h) / px_per_cell);
-        grid_.block_rect(c0, r0, c1, r1);
+        const auto min_cell = grid_.world_to_cell(Vec3{b.x, b.y, 0.0f});
+        const auto max_cell = grid_.world_to_cell(Vec3{b.x + b.w, b.y + b.h, 0.0f});
+        if (!min_cell.has_value() || !max_cell.has_value())
+            continue;
+        grid_.block_rect(min_cell->first, min_cell->second, max_cell->first, max_cell->second);
     }
 }
 
@@ -514,6 +537,35 @@ void NpcAgentDemoNode::plan_paths_and_report() {
             const auto path = world_.find_path(npc.agent->body_state().position, move.target);
             if (!path.empty())
                 npc.body.set_path(path, move.speed);
+            update_path_visual(npc, path);
+        } else {
+            update_path_visual(npc, npc.body.is_moving() ? npc.body.path() : std::vector<Vec3>{});
+        }
+    }
+}
+
+void NpcAgentDemoNode::update_path_visual(NpcInstance& npc, const std::vector<Vec3>& path) {
+    // 路线可视化（R10）：航点蓝点 + 目标亮框，让寻路/绕行肉眼可见。
+    const godot::Vector2 center(static_cast<float>(cfg_.scene.window_width) / 2.0f,
+                                static_cast<float>(cfg_.scene.window_height) / 2.0f);
+    for (std::size_t i = 0; i < npc.path_dots.size(); ++i) {
+        if (i < path.size()) {
+            const godot::Vector2 px =
+                center + godot::Vector2(path[i].x, path[i].y) * cfg_.scene.scale;
+            npc.path_dots[i]->set_position(px - godot::Vector2(4.0f, 4.0f));
+            npc.path_dots[i]->set_visible(true);
+        } else {
+            npc.path_dots[i]->set_visible(false);
+        }
+    }
+    if (npc.target_marker != nullptr) {
+        if (!path.empty()) {
+            const godot::Vector2 px =
+                center + godot::Vector2(path.back().x, path.back().y) * cfg_.scene.scale;
+            npc.target_marker->set_position(px - godot::Vector2(7.0f, 7.0f));
+            npc.target_marker->set_visible(true);
+        } else {
+            npc.target_marker->set_visible(false);
         }
     }
 }
@@ -531,8 +583,8 @@ void NpcAgentDemoNode::place_obstacle() {
     grid_.block_rect(cell->first, cell->second, cell->first + 1, cell->second + 1);
     const float px_per_cell = cfg_.scene.scale * grid_.cell_size();
     auto* box = memnew(godot::ColorRect);
-    box->set_position(godot::Vector2(static_cast<float>(cell->first) * px_per_cell,
-                                     static_cast<float>(cell->second) * px_per_cell));
+    box->set_position(godot::Vector2((static_cast<float>(cell->first) + 0.5f) * px_per_cell,
+                                     (static_cast<float>(cell->second) + 0.5f) * px_per_cell));
     box->set_size(godot::Vector2(px_per_cell * 2.0f, px_per_cell * 2.0f));
     box->set_color(godot::Color(0.62f, 0.47f, 0.25f, 1.0f));
     add_child(box);
@@ -545,6 +597,17 @@ void NpcAgentDemoNode::place_obstacle() {
         if (!path.empty())
             npc.body.set_path(path, npc.body.move_speed());
     }
+}
+
+bool NpcAgentDemoNode::is_pixel_blocked(float px, float py) {
+    if (!ready_)
+        return false;
+    // 像素 → 世界 → 网格单元阻塞判定（player.gd 移动前调用，碰撞语义）。
+    const godot::Vector2 center(static_cast<float>(cfg_.scene.window_width) / 2.0f,
+                                static_cast<float>(cfg_.scene.window_height) / 2.0f);
+    const Vec3 world{(px - center.x) / cfg_.scene.scale, (py - center.y) / cfg_.scene.scale, 0.0f};
+    const auto cell = grid_.world_to_cell(world);
+    return cell.has_value() && grid_.is_blocked(cell->first, cell->second);
 }
 
 void NpcAgentDemoNode::update_debug_label() {

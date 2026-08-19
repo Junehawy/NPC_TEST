@@ -1,6 +1,7 @@
 #include "godot_body.h"
 
 #include <cmath>
+#include <utility>
 
 namespace npc_agent::adapter::godot_demo {
 
@@ -61,6 +62,10 @@ ActionHandle GodotBody::dispatch_game_event(const GameEvent&) {
     return ActionHandle{next_handle_++}; // 示例无领域动作通道需求
 }
 
+void GodotBody::set_blocked_check(std::function<bool(Vec3)> check) {
+    blocked_check_ = std::move(check);
+}
+
 void GodotBody::update_movement(double dt) {
     if (!moving_ || path_index_ >= path_.size())
         return;
@@ -72,7 +77,12 @@ void GodotBody::update_movement(double dt) {
     if (std::abs(delta_px.x) > 0.001f)
         sprite_->set_scale(godot::Vector2(delta_px.x > 0.0f ? 1.0f : -1.0f, 1.0f));
     if (delta_px.length() <= step + params_.arrive_epsilon * transform_.scale) {
-        npc_->set_position(target_px); // 到达当前航点：吸附后进下一段
+        // 到达当前航点：目标位置被阻塞（重规划尚未生效）则原地停下，不穿行。
+        if (blocked_check_ && blocked_check_(path_[path_index_])) {
+            moving_ = false;
+            return;
+        }
+        npc_->set_position(target_px); // 吸附后进下一段
         ++path_index_;
         if (path_index_ >= path_.size()) {
             moving_ = false;
@@ -80,7 +90,12 @@ void GodotBody::update_movement(double dt) {
         }
         return;
     }
-    npc_->set_position(pos + delta_px.normalized() * step);
+    const godot::Vector2 next_px = pos + delta_px.normalized() * step;
+    if (blocked_check_ && blocked_check_(transform_.to_world(next_px))) {
+        moving_ = false; // 步进位置被阻塞：停止（碰撞语义，不穿行）
+        return;
+    }
+    npc_->set_position(next_px);
 }
 
 bool GodotBody::consume_arrival() {
@@ -95,6 +110,10 @@ ActionHandle GodotBody::last_move_handle() const {
 
 bool GodotBody::is_moving() const {
     return moving_;
+}
+
+const std::vector<Vec3>& GodotBody::path() const {
+    return path_;
 }
 
 Vec3 GodotBody::path_target() const {
