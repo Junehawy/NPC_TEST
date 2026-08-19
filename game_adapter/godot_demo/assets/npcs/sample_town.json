@@ -103,7 +103,9 @@
                       {
                         "target": "walk2",
                         "condition": {
-                          "elapsed_ge": 2.5
+                          "bb": {
+                            "move_done": true
+                          }
                         }
                       }
                     ]
@@ -131,7 +133,9 @@
                       {
                         "target": "idle",
                         "condition": {
-                          "elapsed_ge": 2.5
+                          "bb": {
+                            "move_done": true
+                          }
                         }
                       }
                     ]
@@ -349,7 +353,9 @@
                       {
                         "target": "idle",
                         "condition": {
-                          "elapsed_ge": 3.0
+                          "bb": {
+                            "move_done": true
+                          }
                         }
                       }
                     ]
@@ -482,7 +488,9 @@
                       {
                         "target": "idle",
                         "condition": {
-                          "elapsed_ge": 4.0
+                          "bb": {
+                            "move_done": true
+                          }
                         }
                       }
                     ]

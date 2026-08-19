@@ -476,11 +476,12 @@ NPC_TEST/
 - **验收**：MockWorld 场景"听到枪声 → 警戒 → 呼叫支援 → 搜寻"跑通；trace 回放断言序列一致。
 - **验收记录（2026-08-17）**：FSM/Utility/BT 三类决策器（`npc_agent/decision/`，数据驱动 + fail-fast 定义校验）、感知模块（`capabilities/perception_module`，ICapability::on_tick 钩子 R9）、动作回投（action.completed/failed/cancelled 事件）、DecisionTrace v1 + `tools/trace_replay` CLI（record/replay PASS：50 行严格一致，R8 阈值）落码；验收场景 AcceptanceScenario 时间线断言逐 tick 锁定；Release（-Werror 零警告）ctest 82 用例 / 430 断言全绿；审查报告 `docs/reviews/20260817-阶段2.md`。
 
-### 阶段 3：寻路与感知增强（2~3 周）
-- [ ] A* 实现（宿主侧示例）+ `can_reach` / `find_path` 消费
-- [ ] 视野/听觉判定封装（宿主侧实现细节）；评估宿主侧异步化策略（§3.2 性能契约）
-- [ ] （可选）recastnavigation 接入评估
+### 阶段 3：寻路与感知增强（2~3 周）✅ 完成
+- [x] A* 实现（宿主侧示例）+ `can_reach` / `find_path` 消费
+- [x] 视野/听觉判定封装（宿主侧实现细节）；评估宿主侧异步化策略（§3.2 性能契约）
+- [ ] （可选）recastnavigation 接入评估 —— 未做：GridNav 已满足演示/测试规模；生产级第三方导航评估留待阶段 6
 - **验收**：NPC 沿 A* 路径移动，途中障碍触发重新规划；动作完成事件正确推进 FSM。
+- **验收记录（2026-08-17）**：GridNav（网格占用 + 确定性 A* + can_reach/find_path + 障碍版本号 + origin 支持）与 MoveDoneCapability（action.completed → 单 tick move_done 脉冲）落码 `npc_agent/testing/`；headless 验收三用例（沿 A* 绕障移动 / 途中障碍重规划 / 动作事件推进 FSM）全绿；Godot 演示接入真实宿主导航（建筑→网格障碍、移动意图→A* 航点注入、到达回投、E 键放置障碍触发移动中 NPC 重规划），town 巡逻/响应/逃窜改为到达驱动（move_done）；Release（-Werror 零警告）ctest 94 用例 / 548 断言全绿；门禁 5/5；审查报告 `docs/reviews/20260817-阶段3.md`。
 
 ### 阶段 4：对话与社交（3~4 周）
 - [ ] 对话图（节点 + 条件分支 + 变量求值）
@@ -552,7 +553,7 @@ NPC_TEST/
 7. **Provider::cancel 的真实中断能力 + 冷却联动**：HTTP 层能否真正断开 / 本地推理能否中断，阶段 5 实现时评估，不影响接口形态（默认空操作已预留）。**LLMGateway 须把"取消是否成功"纳入冷却逻辑**：若未能真正中断旧请求，冷却不得立即重置，须等旧请求结束（或超时）才放行新请求——否则同一 NPC 会同时有两个请求在飞，双倍消耗令牌预算（并入本条的评审点 R4-6）。
 8. **trace 回放确定性验收标准**：✅ 已定案（2026-08-17，阶段 2 开工前定案，详见 §14 R8）——唯一随机源为 Agent 根 RNG（每 tick 派生 rng_seed）；trace 行含 tick_index/game_time/rng_seed/决策来源/候选表/胜出意图；回放 = 同配置同种子同刺激脚本（按 tick 对齐）重跑逐行比对，**阈值 = 严格一致**（首分歧 tick 即失败）；排除跨线程时序/宿主非确定性/真实 LLM。
 9. **编译期开关候选清单最终确认**（llm / memory.vector / 可选导航库）：阶段 0 定。
-10. **IWorld 宿主侧重计算异步化策略**（宿主职责，框架只给契约不规定实现）：阶段 3 评估。
+10. **IWorld 宿主侧重计算异步化策略**：✅ 已评估定案（2026-08-17，阶段 3，详见 §14 R10）——框架保持 §3.2 契约（"仅驱动线程调用"是线程安全契约、不承诺重同步实现）；宿主侧务实策略：①导航缓存（目标→路径，障碍版本号失效，GridNav.obstacle_version 提供）；②A* 时间片（每 tick 节点预算、跨 tick 续算）；③异步结果经值语义快照入队（符合线程契约）。演示规模（38×21 网格）单次寻路 <0.1ms，无需异步。
 11. **多场景 / 分片（v1 显式排除范围，冻结前修订 R4）**：v1 假设**单一活跃场景**（AgentSystem 持有单份当前场景 IWorld 引用，Agent 不持有 IWorld 指针）。多场景并发（副本实例、多人房间分片、多地图并行）是**显式排除**的 v1 范围，v2 再评估（届时可能需要 AgentSystem 按场景分片、或 Agent 归属场景）。宿主若打破此假设，属框架范围变更，须走接口评审。
 
 ---
@@ -635,5 +636,15 @@ NPC_TEST/
 | R9-5 决策日志 v1 + trace 工具 | `tracing/DecisionTrace`（R8 字段 JSON lines + dump/load/compare）+ `AgentSystem::set_trace`（空指针零开销）+ `tools/trace_replay` CLI（record/replay/print）；回放阈值=逐行严格一致 |
 | R9-6 验收场景 | `testing/AcceptanceScenario`：FSM guard + 感知模块 + 确定性刺激脚本（tick 3 枪声，dt=0.1，seed=42）跑通"听到枪声 → 警戒 → 呼叫支援 → 搜寻 → 回 idle"；ctest 时间线逐 tick 断言 + 回放一致性断言 + CLI replay PASS（50 行严格一致） |
 | R9-7 浮点容差 | elapsed_ge 比较加 1e-9 容差（dt=0.1 累计误差导致 2.0s 边界差 1e-15 不触发）；确定性不受影响（常量容差） |
+
+**阶段 3 落码修订（R10，并入 v0.3，不另出版本）**：
+
+| 条目 | 处理 |
+|---|---|
+| R10-1 GridNav | 宿主侧 A* 示例（`npc_agent/testing/`，headless 测试设施 + Godot 复用）：网格占用 + 确定性 A*（开放表按 f/g/行列全序）、can_reach/find_path、障碍版本号（缓存失效）、origin 支持（世界原点可偏移，负坐标可映射）、block_rect；单元 0.25u，38×21 网格单次寻路 <0.1ms |
+| R10-2 MoveDoneCapability | action.completed → 黑板 move_done 单 tick 脉冲（事件后一 tick true、随后复位），FSM 条件 {"bb":{"move_done":true}} 消费——"动作完成事件正确推进 FSM"链路（宿主 report_action_result → on_event → on_tick 旗标 → 决策器迁移） |
+| R10-3 宿主异步化策略（开放问题 #10 定案） | 框架保持 §3.2 契约；宿主务实策略：导航缓存（障碍版本号失效）/ A* 时间片 / 快照入队；演示规模无需异步（见 §13 #10） |
+| R10-4 Godot 接入 | GodotWorld 委托 GridNav（建筑→网格障碍）；GodotBody 路径跟随（set_path 航点、逐段到达、consume_arrival + last_move_handle）；演示节点每帧移动意图→A* 航点注入、到达回投 action.completed、E 键放置障碍触发移动中 NPC 重规划；town 巡逻/响应/逃窜改为 move_done 到达驱动 |
+| R10-5 can_reach 语义 | 同单元 = 可达（已就位）；起终点阻塞/不可达 = false |
 
 **历史对照（v0.1 → v0.2，摘要）**：接口层重构为 IWorld+IAgentBody 双接口、全 POD 契约类型、Intent variant+仲裁、ActionHandle 生命周期、领域动作走 dispatch_game_event、线程契约（主线程接口 + WorldSnapshot/AgentSnapshot 值语义 + 回调入队）、per-agent Agent + 全局 AgentSystem + scope 事件总线、TickContext、感知查询/推送分流、事件/黑板定界、DialogueSession、LLM 输出分级（Text/JsonSchema）、PromptBuilder/LLMGateway 列为模块且网关移入阶段 5、SocialGraph 世界级、EnTT 移除论证、BT 读档重置、Trace 录制回放、开关依赖闭包与超集约束、decision v1 互斥、序列化契约时机修正、阶段 5 拆出 5.5、MVP 减负。完整明细见 git 历史中 v0.2 版本文档的 §14。

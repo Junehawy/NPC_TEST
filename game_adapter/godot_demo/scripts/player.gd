@@ -25,6 +25,9 @@ func _process(delta: float) -> void:
 	position.y = clampf(position.y, clamp_margin, clamp_size.y - clamp_margin)
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and event.physical_keycode == KEY_SPACE:
-		# 经 group 定位演示节点（主场景直接运行与 autopilot 嵌套场景均适用）。
-		get_tree().get_first_node_in_group("npc_demo").inject_gunshot()
+	if event is InputEventKey and event.pressed:
+		var demo := get_tree().get_first_node_in_group("npc_demo")
+		if event.physical_keycode == KEY_SPACE:
+			demo.inject_gunshot()
+		elif event.physical_keycode == KEY_E:
+			demo.place_obstacle()

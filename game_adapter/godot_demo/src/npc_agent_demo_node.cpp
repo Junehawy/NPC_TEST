@@ -26,7 +26,9 @@
 #include "npc_agent/core/agent_config.h"
 #include "npc_agent/decision/fsm_decision_maker.h"
 #include "npc_agent/interfaces/intent.h"
+#include "npc_agent/testing/grid_nav.h"
 #include "npc_agent/testing/intent_desc.h"
+#include "npc_agent/testing/move_done_capability.h"
 #include "startle_capability.h"
 
 namespace npc_agent::adapter::godot_demo {
@@ -41,7 +43,7 @@ constexpr const char* kHintText = "WASD 移动 · 空格 枪声刺激 · 靠近 
 constexpr const char* kHintTextFsm =
     "阶段 2 FSM：WASD 移动 · 空格 枪声 → 警戒 → 呼叫支援 → 搜寻 · 靠近触发问候";
 constexpr const char* kHintTextMulti =
-    "阶段 2 多NPC：WASD 移动 · 空格 枪声 → 守卫警戒呼叫支援 · 平民逃窜 · 支援兵响应 · 靠近问候";
+    "阶段 3 多NPC：WASD 移动 · 空格 枪声 · E 放置障碍（NPC 绕行）· 靠近问候";
 
 constexpr const char* kShoutMarker = "呼叫支援"; // 台词标记（宿主声学传播触发条件）
 } // namespace
@@ -49,6 +51,8 @@ constexpr const char* kShoutMarker = "呼叫支援"; // 台词标记（宿主声
 void NpcAgentDemoNode::_bind_methods() {
     godot::ClassDB::bind_method(godot::D_METHOD("inject_gunshot"),
                                 &NpcAgentDemoNode::inject_gunshot);
+    godot::ClassDB::bind_method(godot::D_METHOD("place_obstacle"),
+                                &NpcAgentDemoNode::place_obstacle);
 }
 
 void NpcAgentDemoNode::_ready() {
@@ -96,9 +100,11 @@ void NpcAgentDemoNode::_process(double delta) {
             inject_player_flags(*npc.agent, npc.player_near_distance);
     }
     system_.tick();
-    if (!npcs_.empty())
-        propagate_shouts(); // 呼叫支援台词 → stimulus.shout（连锁反应）
-    update_debug_label();   // 演示规模：每帧刷新面板，保证瞬时意图可见
+    if (!npcs_.empty()) {
+        propagate_shouts();      // 呼叫支援台词 → stimulus.shout（连锁反应）
+        plan_paths_and_report(); // 移动意图 → A* 路径注入 + 到达回投（阶段 3）
+    }
+    update_debug_label(); // 演示规模：每帧刷新面板，保证瞬时意图可见
 }
 
 void NpcAgentDemoNode::inject_gunshot() {
@@ -187,6 +193,7 @@ bool NpcAgentDemoNode::setup_single_npc() {
         perception_params.stimulus_window_seconds = cfg_.fsm.stimulus_window_seconds;
         agent_->register_capability(
             std::make_unique<capabilities::PerceptionModule>(perception_params));
+        agent_->register_capability(std::make_unique<testing::MoveDoneCapability>());
         log_status("装配阶段 2 行为系统（FSM + 感知模块）");
     } else {
         // 旧演示模式：巡逻决策器 + 问候/惊吓/警戒能力（参数化，见 demo_config）。
@@ -228,8 +235,9 @@ bool NpcAgentDemoNode::setup_multi_npc() {
         perception_params.stimulus_window_seconds = spec.fsm.stimulus_window_seconds;
         npc.agent->register_capability(
             std::make_unique<capabilities::PerceptionModule>(perception_params));
+        npc.agent->register_capability(std::make_unique<testing::MoveDoneCapability>());
     }
-    log_status("装配阶段 2 多 NPC 行为系统（每 NPC 独立 FSM + 感知模块）");
+    log_status("装配阶段 3 多 NPC 行为系统（每 NPC 独立 FSM + 感知 + 导航）");
     return true;
 }
 
@@ -242,8 +250,20 @@ void NpcAgentDemoNode::build_scene() {
                                          static_cast<float>(cfg_.scene.window_height) / 2.0f)};
     world_.set_transform(transform);
 
-    if (cfg_.scene.map_enabled)
+    // 阶段 3 宿主导航：网格覆盖整个世界范围（世界原点=窗口中心，坐标为负，
+    // GridNav 以 origin 支持）。单元 0.25 世界单位。
+    const float world_width = static_cast<float>(cfg_.scene.window_width) / cfg_.scene.scale;
+    const float world_height = static_cast<float>(cfg_.scene.window_height) / cfg_.scene.scale;
+    constexpr float kCell = 0.25f;
+    grid_ = testing::GridNav(static_cast<int>(world_width / kCell),
+                             static_cast<int>(world_height / kCell), kCell);
+    grid_.set_origin(Vec3{-world_width / 2.0f, -world_height / 2.0f, 0.0f});
+    world_.set_grid_nav(&grid_);
+
+    if (cfg_.scene.map_enabled) {
         draw_map(cfg_.scene.window_width, cfg_.scene.window_height);
+        register_map_obstacles(cfg_.scene.window_width, cfg_.scene.window_height);
+    }
 
     if (cfg_.scene.npcs.empty())
         build_single_npc_scene(transform);
@@ -455,6 +475,75 @@ void NpcAgentDemoNode::propagate_shouts() {
         } else if (!shouting) {
             npc.shout_sent = false;
         }
+    }
+}
+
+void NpcAgentDemoNode::register_map_obstacles(int width, int height) {
+    // 建筑像素矩形 → 网格单元阻塞（与 draw_map 同一张表；像素/（scale*cell）即单元）。
+    const float px_per_cell = cfg_.scene.scale * grid_.cell_size();
+    const struct {
+        float x;
+        float y;
+        float w;
+        float h;
+    } kBuildings[] = {
+        {40.0f, 50.0f, 140.0f, 120.0f},  {700.0f, 40.0f, 180.0f, 110.0f},
+        {60.0f, 380.0f, 150.0f, 100.0f}, {760.0f, 400.0f, 140.0f, 90.0f},
+        {420.0f, 55.0f, 110.0f, 80.0f},
+    };
+    (void)width;
+    (void)height;
+    for (const auto& b : kBuildings) {
+        const int c0 = static_cast<int>(b.x / px_per_cell);
+        const int r0 = static_cast<int>(b.y / px_per_cell);
+        const int c1 = static_cast<int>((b.x + b.w) / px_per_cell);
+        const int r1 = static_cast<int>((b.y + b.h) / px_per_cell);
+        grid_.block_rect(c0, r0, c1, r1);
+    }
+}
+
+void NpcAgentDemoNode::plan_paths_and_report() {
+    // 阶段 3（R10）：① 身体走完路径 → 报告动作完成（move_done 驱动 FSM）；
+    // ② 新移动意图 → 经 world_.find_path（GridNav A*）注入航点。
+    for (auto& npc : npcs_) {
+        if (npc.body.consume_arrival())
+            npc.agent->report_action_result(npc.body.last_move_handle(), "completed");
+        const auto& intent = npc.agent->last_intent();
+        if (intent.has_value() && std::holds_alternative<MoveIntent>(intent->payload)) {
+            const auto& move = std::get<MoveIntent>(intent->payload);
+            const auto path = world_.find_path(npc.agent->body_state().position, move.target);
+            if (!path.empty())
+                npc.body.set_path(path, move.speed);
+        }
+    }
+}
+
+void NpcAgentDemoNode::place_obstacle() {
+    if (!ready_ || npcs_.empty())
+        return;
+    const auto player_pos = world_.entity_pos("player");
+    if (!player_pos.has_value())
+        return;
+    const auto cell = grid_.world_to_cell(*player_pos);
+    if (!cell.has_value())
+        return;
+    // 网格阻塞 2×2 单元 + 视觉方块（深色木箱）。
+    grid_.block_rect(cell->first, cell->second, cell->first + 1, cell->second + 1);
+    const float px_per_cell = cfg_.scene.scale * grid_.cell_size();
+    auto* box = memnew(godot::ColorRect);
+    box->set_position(godot::Vector2(static_cast<float>(cell->first) * px_per_cell,
+                                     static_cast<float>(cell->second) * px_per_cell));
+    box->set_size(godot::Vector2(px_per_cell * 2.0f, px_per_cell * 2.0f));
+    box->set_color(godot::Color(0.62f, 0.47f, 0.25f, 1.0f));
+    add_child(box);
+    // 途中障碍触发重规划：移动中的 NPC 立即重新寻路到原目标。
+    for (auto& npc : npcs_) {
+        if (!npc.body.is_moving())
+            continue;
+        const auto path =
+            world_.find_path(npc.agent->body_state().position, npc.body.path_target());
+        if (!path.empty())
+            npc.body.set_path(path, npc.body.move_speed());
     }
 }
 

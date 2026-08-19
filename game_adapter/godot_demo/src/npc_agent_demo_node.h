@@ -35,6 +35,9 @@ public:
     // 玩家开火（GDScript 调用）：注入枪声刺激，经感知模块驱动各 NPC 反应。
     void inject_gunshot();
 
+    // 玩家放置障碍（GDScript 调用，E 键）：阻塞网格 + 视觉方块 + 移动中 NPC 重规划。
+    void place_obstacle();
+
 protected:
     static void _bind_methods();
 
@@ -59,8 +62,10 @@ private:
     void build_scene();                      // 场景树装配（窗口/精灵/气泡/玩家/面板）
     void build_single_npc_scene(const WorldTransform& transform); // 单 NPC 场景
     void build_multi_npc_scene(const WorldTransform& transform);  // 多 NPC 场景（规格表）
-    void draw_map(int width, int height); // 装饰地图（地面/道路/建筑/树木，R7-12）
-    void update_debug_label();            // 调试面板刷新（多 NPC 逐行）
+    void draw_map(int width, int height);               // 装饰地图（地面/道路/建筑/树木，R7-12）
+    void register_map_obstacles(int width, int height); // 建筑→网格障碍（阶段 3）
+    void plan_paths_and_report(); // 移动意图→A* 路径注入 + 到达回投（阶段 3，R10）
+    void update_debug_label();    // 调试面板刷新（多 NPC 逐行）
     void inject_player_flags(core::Agent& agent, float near_distance); // 距离/近距旗标
     void propagate_shouts();                 // 呼叫支援台词 → stimulus.shout（声学传播）
     void log_status(const std::string& msg); // 启动状态输出（控制台）
@@ -68,6 +73,7 @@ private:
     DemoConfig cfg_;
     core::AgentConfig agent_cfg_;
     core::AgentSystem system_;
+    testing::GridNav grid_{38, 21, 0.25f}; // 宿主导航网格（build_scene 按窗口重算）
     GodotWorld world_;
     GodotBody body_;                // 单 NPC 模式的身体
     core::Agent* agent_ = nullptr;  // 单 NPC 模式的 Agent

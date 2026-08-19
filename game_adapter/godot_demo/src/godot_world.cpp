@@ -16,6 +16,10 @@ void GodotWorld::add_entity(std::string id, godot::Node2D* node) {
     entities_.push_back(Entity{std::move(id), node});
 }
 
+void GodotWorld::set_grid_nav(testing::GridNav* grid) {
+    grid_ = grid;
+}
+
 void GodotWorld::advance(double dt) {
     last_dt_ = dt;
     game_time_ += dt;
@@ -59,12 +63,16 @@ void GodotWorld::inject_stimulus(const Stimulus& s) {
         recent_.pop_front();
 }
 
-bool GodotWorld::can_reach(Vec3, Vec3) const {
-    return true;
+bool GodotWorld::can_reach(Vec3 from, Vec3 to) const {
+    if (grid_ == nullptr)
+        return true; // 无导航网格：直通可达（旧行为）
+    return grid_->can_reach(from, to);
 }
 
-std::vector<Vec3> GodotWorld::find_path(Vec3, Vec3 to) const {
-    return {to}; // 示例场景无障碍物，路径即直达
+std::vector<Vec3> GodotWorld::find_path(Vec3 from, Vec3 to) const {
+    if (grid_ == nullptr)
+        return {to}; // 无导航网格：路径即直达（旧行为）
+    return grid_->find_path(from, to);
 }
 
 WorldSnapshot GodotWorld::snapshot() const {

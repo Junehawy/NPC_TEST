@@ -14,6 +14,7 @@
 
 #include "godot_transform.h"
 #include "npc_agent/interfaces/i_world.h"
+#include "npc_agent/testing/grid_nav.h"
 
 namespace npc_agent::adapter::godot_demo {
 
@@ -24,6 +25,10 @@ public:
 
     // 注册可感知实体（演示装配期调用；示例不支持运行时注销）。
     void add_entity(std::string id, godot::Node2D* node);
+
+    // 注册宿主导航网格（阶段 3）：非空时 can_reach/find_path 委托 GridNav；
+    // 网格以世界坐标工作，需先 set_transform。
+    void set_grid_nav(testing::GridNav* grid);
 
     // 推进世界时间（每帧 delta 秒；tick_index 单调递增）。
     void advance(double dt);
@@ -47,6 +52,7 @@ private:
     };
 
     WorldTransform transform_;
+    testing::GridNav* grid_ = nullptr; // 宿主导航（空 = 直通可达）
     double game_time_ = 0.0;
     double last_dt_ = 0.0;
     uint64_t tick_index_ = 0;

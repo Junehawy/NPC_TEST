@@ -71,7 +71,8 @@ target_link_libraries(npc_agent PUBLIC nlohmann_json::nlohmann_json)
 add_library(npc_agent_testing STATIC
   npc_agent/src/testing/mock_world.cpp
   npc_agent/src/testing/intent_desc.cpp
-  npc_agent/src/testing/acceptance_scenario.cpp)
+  npc_agent/src/testing/acceptance_scenario.cpp
+  npc_agent/src/testing/grid_nav.cpp)
 target_include_directories(npc_agent_testing PUBLIC npc_agent/include)
 target_link_libraries(npc_agent_testing PUBLIC npc_agent)
 
@@ -109,7 +110,9 @@ add_executable(npc_agent_tests
   npc_agent/tests/core/test_perception_module.cpp
   npc_agent/tests/core/test_action_lifecycle.cpp
   npc_agent/tests/core/test_trace.cpp
-  npc_agent/tests/core/test_acceptance_scenario.cpp)
+  npc_agent/tests/core/test_acceptance_scenario.cpp
+  npc_agent/tests/core/test_grid_nav.cpp
+  npc_agent/tests/core/test_stage3_nav.cpp)
 target_link_libraries(npc_agent_tests PRIVATE npc_agent npc_agent_testing Catch2::Catch2WithMain)
 add_test(NAME npc_agent_tests COMMAND npc_agent_tests)
 

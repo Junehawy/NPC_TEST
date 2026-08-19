@@ -7,6 +7,7 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
 #include <godot_cpp/classes/label.hpp>
 #include <godot_cpp/classes/node2d.hpp>
@@ -32,8 +33,21 @@ public:
     ActionHandle dispatch_game_event(const GameEvent& e) override; // 示例无领域动作，仅回句柄
 
     // ---- 每帧驱动（由演示节点调用，驱动线程） ----
-    void update_movement(double dt); // 朝目标推进并翻转朝向；到达后自动停止
+    // 宿主路径注入（阶段 3，R10）：把 A* 航点喂给身体，move_to 后由宿主调用；
+    // 身体按航点序列行进，全部到达后置 arrival 待取。
+    void set_path(std::vector<Vec3> waypoints, float speed);
+    void update_movement(double dt); // 沿路径推进并翻转朝向；到达后自动停止
     void update_bubble(double dt);   // 气泡计时到期隐藏
+
+    // 到达观测（阶段 3）：上次移动全部航点走完后返回 true 并复位（每段一次）。
+    // 宿主据此 report_action_result(handle, "completed") → move_done 驱动 FSM。
+    bool consume_arrival();
+    ActionHandle last_move_handle() const; // 最近一次 move_to/set_path 的句柄
+
+    // 路径观测（宿主重规划用，阶段 3）。
+    bool is_moving() const;
+    Vec3 path_target() const; // 当前路径终点（无路径返回零向量）
+    float move_speed() const;
 
 private:
     void show_bubble(const std::string& text, double seconds); // 气泡显示限时
@@ -43,9 +57,12 @@ private:
     godot::Label* bubble_ = nullptr;
     WorldTransform transform_;
     BodyParams params_;
-    Vec3 move_target_{};
+    std::vector<Vec3> path_{}; // 当前路径航点（世界坐标；move_to 时为单点）
+    std::size_t path_index_ = 0;
     float move_speed_ = 0.0f;
     bool moving_ = false;
+    bool arrival_pending_ = false; // 到达待取（宿主 consume_arrival 读取）
+    ActionHandle last_move_handle_{};
     double bubble_time_left_ = 0.0;
     double emote_lock_left_ = 0.0; // 惊吓展示锁：期间台词不打断表情（视觉可见性）
     uint64_t next_handle_ = 1;
