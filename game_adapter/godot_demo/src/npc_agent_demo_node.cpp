@@ -646,13 +646,14 @@ void NpcAgentDemoNode::place_obstacle(float dir_x, float dir_y) {
     if (dx == 0 && dy == 0)
         dx = 1;
     // 候选方向：前 → 顺时针 → 逆时针 → 反（前方被堵时退而求其次，避免围死自己）。
-    // 每个方向从近到远（2→20 单元）找第一个可放置的 2×2 块：连续按 E 会沿视线
-    // 向前排布木箱（跳过已放区域找最近空位），而非原地放满后开始失败。
+    // 每个方向在 2→4 单元（0.5~1.0 世界单位）内找第一个可放置的 2×2 块：
+    // 木箱始终落在按 E 的附近（不超过 1u），连续按 E 会沿视线向前排布；
+    // 该距离内放满则换方向，全方向无空位才提示失败。
     const std::pair<int, int> kCands[] = {{dx, dy}, {-dy, dx}, {dy, -dx}, {-dx, -dy}};
     int px0 = 0, py0 = 0;
     bool placed = false;
     for (const auto& [cx, cy] : kCands) {
-        for (int dist = 2; dist <= 20 && !placed; ++dist) {
+        for (int dist = 2; dist <= 4 && !placed; ++dist) {
             const int x0 = cell->first + cx * dist;
             const int y0 = cell->second + cy * dist;
             bool ok = true;

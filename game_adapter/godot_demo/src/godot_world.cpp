@@ -1,5 +1,6 @@
 #include "godot_world.h"
 
+#include <algorithm>
 #include <cmath>
 
 namespace npc_agent::adapter::godot_demo {
@@ -72,7 +73,33 @@ bool GodotWorld::can_reach(Vec3 from, Vec3 to) const {
 std::vector<Vec3> GodotWorld::find_path(Vec3 from, Vec3 to) const {
     if (grid_ == nullptr)
         return {to}; // 无导航网格：路径即直达（旧行为）
-    return grid_->find_path(from, to);
+    std::vector<Vec3> path = grid_->find_path(from, to);
+    if (!path.empty())
+        return path;
+    // 终点被阻塞/不可达（如木箱正好压在目标点）：在终点周围找最近可达单元
+    // 作为替代目的地（fallback），保证 NPC 总有合理终点可去（R10-9）。
+    // 仅当目标 cell 确实被阻塞时触发：若目标可达但 start==goal（已就位），
+    // find_path 返回空是"无需移动"语义，fallback 会把终点改到旁边 cell，
+    // 导致路径每帧抖动、move_done 永不触发（R10-9 回归）。
+    const auto goal = grid_->world_to_cell(to);
+    if (!goal.has_value() || !grid_->is_blocked(goal->first, goal->second))
+        return path;
+    for (int r = 1; r <= 10; ++r) { // 半径 10 单元（2.5u）内螺旋搜索
+        for (int dc = -r; dc <= r; ++dc) {
+            for (int dr = -r; dr <= r; ++dr) {
+                if (std::max(std::abs(dc), std::abs(dr)) != r)
+                    continue; // 只在当前环上搜索
+                const int c = goal->first + dc;
+                const int row = goal->second + dr;
+                if (!grid_->in_bounds(c, row) || grid_->is_blocked(c, row))
+                    continue;
+                const auto alt = grid_->find_path(from, grid_->cell_to_world(c, row));
+                if (!alt.empty())
+                    return alt;
+            }
+        }
+    }
+    return path; // 周围也全堵：保持空路径（宿主自行等待）
 }
 
 WorldSnapshot GodotWorld::snapshot() const {

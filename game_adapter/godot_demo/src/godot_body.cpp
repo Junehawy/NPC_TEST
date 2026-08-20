@@ -1,5 +1,6 @@
 #include "godot_body.h"
 
+#include <algorithm>
 #include <cmath>
 #include <utility>
 
@@ -37,6 +38,15 @@ ActionHandle GodotBody::move_to(Vec3 target, float speed) {
 void GodotBody::set_path(std::vector<Vec3> waypoints, float speed) {
     if (waypoints.empty())
         return; // 无路径：维持现状（调用方应传有效航点）
+    // 去重（R10-9）：同一路径重复注入（宿主每帧重规划时）不重置到达标志/句柄——
+    // 否则已到达的目标点每帧被 set_path 清零 arrival，move_done 永不触发。
+    if (waypoints.size() == path_.size() &&
+        std::equal(
+            waypoints.begin(), waypoints.end(), path_.begin(),
+            [](const Vec3& a, const Vec3& b) { return a.x == b.x && a.y == b.y && a.z == b.z; })) {
+        move_speed_ = speed; // 仅刷新速度
+        return;
+    }
     path_ = std::move(waypoints);
     path_index_ = 0;
     move_speed_ = speed;
