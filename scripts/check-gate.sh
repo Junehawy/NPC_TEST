@@ -50,10 +50,19 @@ DEMO_SO="game_adapter/godot_demo/bin/libnpc_agent_godot_demo.linux.release.x86_6
 if [ -n "$GODOT_BIN" ] && [ -f "$DEMO_SO" ]; then
   # 沙箱环境 HOME 可能不可写：XDG 目录重定向到仓库临时目录。
   mkdir -p .tmp-godotdata .tmp-godotconfig
+  # 单 NPC 冒烟 + town 多 NPC 连锁 + 80s 多场景压力冒烟（卡死检测）。
   XDG_DATA_HOME="$ROOT/.tmp-godotdata" XDG_CONFIG_HOME="$ROOT/.tmp-godotconfig" \
     "$GODOT_BIN" --headless --path game_adapter/godot_demo \
-    --script res://scripts/smoke_test.gd --fixed-fps 60
-  ok "Godot 演示冒烟"
+    --script res://scripts/smoke_test.gd --fixed-fps 60 || fail "Godot 单 NPC 冒烟失败"
+  XDG_DATA_HOME="$ROOT/.tmp-godotdata" XDG_CONFIG_HOME="$ROOT/.tmp-godotconfig" \
+    "$GODOT_BIN" --headless --path game_adapter/godot_demo \
+    --script res://scripts/smoke_town.gd --fixed-fps 60 \
+    -- --config res://assets/npcs/sample_town.json || fail "Godot town 连锁冒烟失败"
+  XDG_DATA_HOME="$ROOT/.tmp-godotdata" XDG_CONFIG_HOME="$ROOT/.tmp-godotconfig" \
+    "$GODOT_BIN" --headless --path game_adapter/godot_demo \
+    --script res://scripts/smoke_stress.gd --fixed-fps 60 \
+    -- --config res://assets/npcs/sample_town.json || fail "Godot 压力冒烟失败（NPC 卡死检测）"
+  ok "Godot 演示冒烟（单 NPC + town 连锁 + 80s 压力）"
 else
   echo "[GATE] skip: Godot 演示冒烟（未装 godot 或未构建扩展：cmake --preset godot && cmake --build --preset godot）"
 fi
