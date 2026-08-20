@@ -94,8 +94,10 @@ private:
     godot::Node2D* player_node_ = nullptr;
     godot::Label* bubble_label_ = nullptr;
     godot::Label* debug_label_ = nullptr;
-    double alarm_time_left_ = 0.0; // 警戒剩余时间（旧模式；>0 时黑板 alarm=true）
-    uint64_t last_place_ms_ = 0;   // 上次放置木箱的毫秒时间戳（E 键限频，防按住连放）
+    double alarm_time_left_ = 0.0;          // 警戒剩余时间（旧模式；>0 时黑板 alarm=true）
+    uint64_t last_place_ms_ = 0;            // 上次放置木箱的帧计数（E 键限频，防按住连放）
+    godot::Label* player_bubble_ = nullptr; // 玩家头顶反馈气泡（放置成功/失败提示）
+    double player_bubble_left_ = 0.0;       // 反馈气泡剩余时间（秒）
 };
 
 } // namespace npc_agent::adapter::godot_demo

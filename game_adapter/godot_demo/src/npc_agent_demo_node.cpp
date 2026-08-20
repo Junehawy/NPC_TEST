@@ -151,6 +151,12 @@ void NpcAgentDemoNode::_process(double delta) {
         plan_paths_and_report(); // 移动意图 → A* 路径注入（阶段 3）
     }
     update_debug_label(); // 演示规模：每帧刷新面板，保证瞬时意图可见
+    // 玩家反馈气泡计时（E 放置结果提示）。
+    if (player_bubble_ != nullptr && player_bubble_left_ > 0.0) {
+        player_bubble_left_ -= delta;
+        if (player_bubble_left_ <= 0.0)
+            player_bubble_->set_visible(false);
+    }
 }
 
 void NpcAgentDemoNode::inject_gunshot() {
@@ -337,6 +343,16 @@ void NpcAgentDemoNode::build_scene() {
     player_sprite->set_texture(godot::ResourceLoader::get_singleton()->load(kPlayerSpritePath));
     player_sprite->set_scale(godot::Vector2(0.75f, 0.75f));
     player_node_->add_child(player_sprite);
+    // 玩家头顶反馈气泡（E 放置结果提示：成功/无法放置）。
+    player_bubble_ = memnew(godot::Label);
+    player_bubble_->set_position(godot::Vector2(-90.0f, -84.0f));
+    player_bubble_->set_size(godot::Vector2(180.0f, 0.0f));
+    player_bubble_->set_horizontal_alignment(
+        godot::HorizontalAlignment::HORIZONTAL_ALIGNMENT_CENTER);
+    player_bubble_->add_theme_font_size_override("font_size", 14);
+    player_bubble_->set_modulate(godot::Color(1.0f, 0.9f, 0.4f, 1.0f));
+    player_bubble_->set_visible(false);
+    player_node_->add_child(player_bubble_);
     add_child(player_node_);
     world_.add_entity("player", player_node_);
 
@@ -627,10 +643,10 @@ void NpcAgentDemoNode::update_path_visual(NpcInstance& npc, const std::vector<Ve
 void NpcAgentDemoNode::place_obstacle(float dir_x, float dir_y) {
     if (!ready_ || npcs_.empty())
         return;
-    // E 键限频（15 帧 ≈ 0.25s@60fps）：按住 E 会触发 key repeat（每帧一次），
-    // 无冷却会瞬间把周围放满后连续报"无法放置"。冷却让每次按 E 稳定放置一个。
+    // E 键限频（6 帧 ≈ 0.1s@60fps）：只防 key repeat 每帧重复放置（否则按住 E
+    // 瞬间铺满），同时保留对快速连按的响应（人手最快 ~8 次/秒 < 0.1s 间隔）。
     const uint64_t now = godot::Engine::get_singleton()->get_process_frames();
-    if (now - last_place_ms_ < 15)
+    if (now - last_place_ms_ < 6)
         return;
     last_place_ms_ = now;
     const auto player_pos = world_.entity_pos("player");
@@ -648,8 +664,7 @@ void NpcAgentDemoNode::place_obstacle(float dir_x, float dir_y) {
     // 候选方向：前 → 顺时针 → 逆时针 → 反（前方被堵时退而求其次，避免围死自己）。
     // 每个方向在 2→4 单元（0.5~1.0 世界单位）内找第一个可放置的 2×2 块：
     // 木箱始终落在按 E 的附近（不超过 1u），连续按 E 会沿视线向前排布；
-    // 该距离内放满则换方向。全方向近距离都无空位时（贴墙/树/角落），
-    // 再沿主方向延伸到 8 单元（2.0u）兜底，避免频繁"无法放置"。
+    // 该距离内放满则换方向。绝不放到 1u 之外（宁可提示无法放置）。
     const std::pair<int, int> kCands[] = {{dx, dy}, {-dy, dx}, {dy, -dx}, {-dx, -dy}};
     int px0 = 0, py0 = 0;
     bool placed = false;
@@ -671,29 +686,23 @@ void NpcAgentDemoNode::place_obstacle(float dir_x, float dir_y) {
         if (placed)
             break;
     }
-    // 兜底：主方向延伸到 8 单元（贴障碍角落时附近确实无空位）。
     if (!placed) {
-        for (int dist = 5; dist <= 8 && !placed; ++dist) {
-            const int x0 = cell->first + dx * dist;
-            const int y0 = cell->second + dy * dist;
-            bool ok = true;
-            for (int ox = 0; ox < 2 && ok; ++ox)
-                for (int oy = 0; oy < 2 && ok; ++oy)
-                    if (!grid_.in_bounds(x0 + ox, y0 + oy) || grid_.is_blocked(x0 + ox, y0 + oy))
-                        ok = false;
-            if (ok) {
-                px0 = x0;
-                py0 = y0;
-                placed = true;
-            }
+        // 视觉反馈（窗口里玩家看不到控制台）：头顶气泡提示，0.9s 后消失。
+        if (player_bubble_ != nullptr) {
+            player_bubble_->set_text(godot::String::utf8("四周都被挡住，无法放置"));
+            player_bubble_->set_visible(true);
+            player_bubble_left_ = 0.9;
         }
-    }
-    if (!placed) {
         godot::UtilityFunctions::print(godot::String::utf8("[demo] 四周都被挡住，无法放置木箱"));
         return;
     }
-    // 网格阻塞 2×2 单元 + 视觉方块（深色木箱，以单元左上角定位）。
+    // 放置成功：网格阻塞 2×2 单元 + 视觉方块 + 头顶气泡确认（0.5s）。
     grid_.block_rect(px0, py0, px0 + 1, py0 + 1);
+    if (player_bubble_ != nullptr) {
+        player_bubble_->set_text(godot::String::utf8("已放置木箱"));
+        player_bubble_->set_visible(true);
+        player_bubble_left_ = 0.5;
+    }
     const float px_per_cell = cfg_.scene.scale * grid_.cell_size();
     const godot::Vector2 center(static_cast<float>(cfg_.scene.window_width) / 2.0f,
                                 static_cast<float>(cfg_.scene.window_height) / 2.0f);
