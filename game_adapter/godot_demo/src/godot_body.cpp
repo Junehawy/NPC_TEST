@@ -80,11 +80,10 @@ void GodotBody::update_movement(double dt) {
         sprite_->set_scale(
             godot::Vector2(delta_px.x > 0.0f ? base_scale_ : -base_scale_, base_scale_));
     if (delta_px.length() <= step + params_.arrive_epsilon * transform_.scale) {
-        // 到达当前航点：目标位置被阻塞（重规划尚未生效）则原地停下，不穿行。
-        if (blocked_check_ && blocked_check_(path_[path_index_])) {
-            moving_ = false;
+        // 到达当前航点：目标位置被动态占据（其他 NPC/玩家/新木箱）则原地等待，
+        // 不穿行也不停死——保持 moving_，障碍移开或宿主重规划后下一帧继续。
+        if (blocked_check_ && blocked_check_(path_[path_index_]))
             return;
-        }
         npc_->set_position(target_px); // 吸附后进下一段
         ++path_index_;
         if (path_index_ >= path_.size()) {
@@ -94,10 +93,9 @@ void GodotBody::update_movement(double dt) {
         return;
     }
     const godot::Vector2 next_px = pos + delta_px.normalized() * step;
-    if (blocked_check_ && blocked_check_(transform_.to_world(next_px))) {
-        moving_ = false; // 步进位置被阻塞：停止（碰撞语义，不穿行）
+    // 步进位置被阻塞：本帧不移动，等待（碰撞语义，不穿行；moving_ 保持）。
+    if (blocked_check_ && blocked_check_(transform_.to_world(next_px)))
         return;
-    }
     npc_->set_position(next_px);
 }
 

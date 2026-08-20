@@ -36,8 +36,9 @@ public:
     // 玩家开火（GDScript 调用）：注入枪声刺激，经感知模块驱动各 NPC 反应。
     void inject_gunshot();
 
-    // 玩家放置障碍（GDScript 调用，E 键）：阻塞网格 + 视觉方块 + 移动中 NPC 重规划。
-    void place_obstacle();
+    // 玩家放置障碍（GDScript 调用，E 键）：沿最近移动方向在前方放置 2×2 木箱
+    // （避开脚下与死角），阻塞网格 + 视觉方块 + 移动中 NPC 重规划。
+    void place_obstacle(float dir_x, float dir_y);
 
     // 玩家碰撞查询（GDScript 调用）：像素位置是否落在阻塞单元（player.gd 移动前检查）。
     bool is_pixel_blocked(float px, float py);

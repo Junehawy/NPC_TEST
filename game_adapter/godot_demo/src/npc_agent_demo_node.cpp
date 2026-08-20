@@ -73,12 +73,20 @@ const MapBuilding kPond[] = {
 const MapBuilding kFence[] = {
     {-4.8f, 3.2f, 9.6f, 0.16f, godot::Color(0.52f, 0.48f, 0.42f, 1.0f)},
 };
+
+// 树木（世界坐标树心；树冠半径 26px ≈ 0.26u → 注册为单单元障碍，不可穿过）。
+const Vec3 kTreePos[] = {{-4.2f, -1.8f, 0.0f}, {-3.4f, 2.6f, 0.0f},  {4.4f, -2.2f, 0.0f},
+                         {5.6f, 2.4f, 0.0f},   {-1.6f, -2.2f, 0.0f}, {-0.4f, 2.9f, 0.0f},
+                         {3.8f, 2.8f, 0.0f},   {5.8f, -2.6f, 0.0f},  {-2.2f, -2.8f, 0.0f}};
+
+// 智能体（NPC/玩家）动态占据半径（世界单位）：互不穿透的最近间距。
+constexpr float kAgentRadius = 0.35f;
 } // namespace
 
 void NpcAgentDemoNode::_bind_methods() {
     godot::ClassDB::bind_method(godot::D_METHOD("inject_gunshot"),
                                 &NpcAgentDemoNode::inject_gunshot);
-    godot::ClassDB::bind_method(godot::D_METHOD("place_obstacle"),
+    godot::ClassDB::bind_method(godot::D_METHOD("place_obstacle", "dir_x", "dir_y"),
                                 &NpcAgentDemoNode::place_obstacle);
     godot::ClassDB::bind_method(godot::D_METHOD("is_pixel_blocked"),
                                 &NpcAgentDemoNode::is_pixel_blocked);
@@ -385,15 +393,15 @@ void NpcAgentDemoNode::build_multi_npc_scene(const WorldTransform& transform) {
             godot::ResourceLoader::get_singleton()->load(godot::String(spec.sprite.c_str())));
         npc.sprite->set_modulate(godot::Color(spec.tint[0], spec.tint[1], spec.tint[2], 1.0f));
         npc.node->add_child(npc.sprite);
-        // 名牌：常驻小字（造型 + 名牌双重区分，R7-12）。
+        // 名牌：常驻中文小字，贴头顶（气泡之上；造型 + 名牌双重区分，R7-12）。
         auto* name_label = memnew(godot::Label);
-        name_label->set_position(godot::Vector2(-80.0f, -104.0f));
-        name_label->set_size(godot::Vector2(160.0f, 0.0f));
+        name_label->set_position(godot::Vector2(-60.0f, -90.0f));
+        name_label->set_size(godot::Vector2(120.0f, 0.0f));
         name_label->set_horizontal_alignment(
             godot::HorizontalAlignment::HORIZONTAL_ALIGNMENT_CENTER);
-        name_label->set_text(godot::String(spec.name.c_str()));
-        name_label->add_theme_font_size_override("font_size", 14);
-        name_label->set_modulate(godot::Color(spec.tint[0], spec.tint[1], spec.tint[2], 1.0f));
+        name_label->set_text(godot::String::utf8(spec.label.c_str()));
+        name_label->add_theme_font_size_override("font_size", 13);
+        name_label->set_modulate(godot::Color(1.0f, 1.0f, 1.0f, 0.95f)); // 白字可读
         npc.node->add_child(name_label);
         npc.bubble = memnew(godot::Label);
         npc.bubble->set_position(godot::Vector2(-160.0f, -72.0f));
@@ -403,10 +411,28 @@ void NpcAgentDemoNode::build_multi_npc_scene(const WorldTransform& transform) {
         npc.bubble->set_visible(false);
         npc.node->add_child(npc.bubble);
         npc.body.bind(npc.node, npc.sprite, npc.bubble, transform, cfg_.body);
-        // 碰撞检查（R10）：移动不得进入阻塞单元（NPC 不穿墙/木箱）。
-        npc.body.set_blocked_check([this](Vec3 world) {
+        // 碰撞检查（R10）：移动不得进入阻塞单元（建筑/木箱/树木）或穿越其他
+        // 智能体（NPC 互不穿透 + 不穿玩家；self_node 排除自身）。
+        npc.body.set_blocked_check([this, self_node = npc.node](Vec3 world) {
             const auto cell = grid_.world_to_cell(world);
-            return cell.has_value() && grid_.is_blocked(cell->first, cell->second);
+            if (cell.has_value() && grid_.is_blocked(cell->first, cell->second))
+                return true;
+            for (const auto& other : npcs_) {
+                if (other.node == self_node)
+                    continue;
+                const Vec3 p = other.body.body_state().position;
+                const float dx = world.x - p.x;
+                const float dy = world.y - p.y;
+                if (dx * dx + dy * dy < kAgentRadius * kAgentRadius)
+                    return true;
+            }
+            if (const auto pp = world_.entity_pos("player"); pp.has_value()) {
+                const float dx = world.x - pp->x;
+                const float dy = world.y - pp->y;
+                if (dx * dx + dy * dy < kAgentRadius * kAgentRadius)
+                    return true;
+            }
+            return false;
         });
         // 路线可视化节点：最多 32 个航点蓝点 + 1 个目标亮框。
         constexpr std::size_t kMaxDots = 32;
@@ -460,10 +486,7 @@ void NpcAgentDemoNode::draw_map(int width, int height) {
         add_child(building);
     }
 
-    // 树木：八边形树冠 + 树桩（世界坐标，装饰非障碍）。
-    const Vec3 kTreePos[] = {{-4.2f, -1.8f, 0.0f}, {-3.4f, 2.6f, 0.0f},  {4.4f, -2.2f, 0.0f},
-                             {5.6f, 2.4f, 0.0f},   {-1.6f, -2.2f, 0.0f}, {-0.4f, 2.9f, 0.0f},
-                             {3.8f, 2.8f, 0.0f},   {5.8f, -2.6f, 0.0f},  {-2.2f, -2.8f, 0.0f}};
+    // 树木：八边形树冠 + 树桩（世界坐标；树心注册为障碍，见 register_map_obstacles）。
     for (const auto& tree : kTreePos) {
         const float tx = center_x + tree.x * scale;
         const float ty = center_y + tree.y * scale;
@@ -547,6 +570,13 @@ void NpcAgentDemoNode::register_map_obstacles(int width, int height) {
         register_rect(b);
     for (const auto& b : kFence)
         register_rect(b);
+    // 树木：树心单单元阻塞（树冠半径 0.26u ≈ 单元 0.25u，不可穿过）。
+    for (const auto& t : kTreePos) {
+        const auto cell = grid_.world_to_cell(t);
+        if (!cell.has_value())
+            continue;
+        grid_.block_rect(cell->first, cell->second, cell->first, cell->second);
+    }
 }
 
 void NpcAgentDemoNode::plan_paths_and_report() {
@@ -593,7 +623,7 @@ void NpcAgentDemoNode::update_path_visual(NpcInstance& npc, const std::vector<Ve
     }
 }
 
-void NpcAgentDemoNode::place_obstacle() {
+void NpcAgentDemoNode::place_obstacle(float dir_x, float dir_y) {
     if (!ready_ || npcs_.empty())
         return;
     const auto player_pos = world_.entity_pos("player");
@@ -602,12 +632,43 @@ void NpcAgentDemoNode::place_obstacle() {
     const auto cell = grid_.world_to_cell(*player_pos);
     if (!cell.has_value())
         return;
-    // 网格阻塞 2×2 单元 + 视觉方块（深色木箱）。
-    grid_.block_rect(cell->first, cell->second, cell->first + 1, cell->second + 1);
+    // 放置方向：玩家最近移动方向（GDScript 传入），零向量兜底向右。
+    // 木箱放在前方 2 单元处的 2×2 块，与玩家隔 1 单元空隙——不压脚下、不卡死角。
+    int dx = dir_x > 0.0f ? 1 : (dir_x < 0.0f ? -1 : 0);
+    int dy = dir_y > 0.0f ? 1 : (dir_y < 0.0f ? -1 : 0);
+    if (dx == 0 && dy == 0)
+        dx = 1;
+    // 候选方向：前 → 顺时针 → 逆时针 → 反（前方被堵时退而求其次，避免围死自己）。
+    const std::pair<int, int> kCands[] = {{dx, dy}, {-dy, dx}, {dy, -dx}, {-dx, -dy}};
+    int px0 = 0, py0 = 0;
+    bool placed = false;
+    for (const auto& [cx, cy] : kCands) {
+        const int x0 = cell->first + cx * 2;
+        const int y0 = cell->second + cy * 2;
+        bool ok = true;
+        for (int ox = 0; ox < 2 && ok; ++ox)
+            for (int oy = 0; oy < 2 && ok; ++oy)
+                if (!grid_.in_bounds(x0 + ox, y0 + oy) || grid_.is_blocked(x0 + ox, y0 + oy))
+                    ok = false;
+        if (ok) {
+            px0 = x0;
+            py0 = y0;
+            placed = true;
+            break;
+        }
+    }
+    if (!placed) {
+        godot::UtilityFunctions::print(godot::String::utf8("[demo] 四周都被挡住，无法放置木箱"));
+        return;
+    }
+    // 网格阻塞 2×2 单元 + 视觉方块（深色木箱，以单元左上角定位）。
+    grid_.block_rect(px0, py0, px0 + 1, py0 + 1);
     const float px_per_cell = cfg_.scene.scale * grid_.cell_size();
+    const godot::Vector2 center(static_cast<float>(cfg_.scene.window_width) / 2.0f,
+                                static_cast<float>(cfg_.scene.window_height) / 2.0f);
     auto* box = memnew(godot::ColorRect);
-    box->set_position(godot::Vector2((static_cast<float>(cell->first) + 0.5f) * px_per_cell,
-                                     (static_cast<float>(cell->second) + 0.5f) * px_per_cell));
+    box->set_position(center + godot::Vector2(static_cast<float>(px0) * px_per_cell,
+                                              static_cast<float>(py0) * px_per_cell));
     box->set_size(godot::Vector2(px_per_cell * 2.0f, px_per_cell * 2.0f));
     box->set_color(godot::Color(0.62f, 0.47f, 0.25f, 1.0f));
     add_child(box);
@@ -630,7 +691,17 @@ bool NpcAgentDemoNode::is_pixel_blocked(float px, float py) {
                                 static_cast<float>(cfg_.scene.window_height) / 2.0f);
     const Vec3 world{(px - center.x) / cfg_.scene.scale, (py - center.y) / cfg_.scene.scale, 0.0f};
     const auto cell = grid_.world_to_cell(world);
-    return cell.has_value() && grid_.is_blocked(cell->first, cell->second);
+    if (cell.has_value() && grid_.is_blocked(cell->first, cell->second))
+        return true;
+    // 玩家同样不穿越 NPC（动态占据，与 NPC blocked_check 同一半径）。
+    for (const auto& npc : npcs_) {
+        const Vec3 p = npc.body.body_state().position;
+        const float dx = world.x - p.x;
+        const float dy = world.y - p.y;
+        if (dx * dx + dy * dy < kAgentRadius * kAgentRadius)
+            return true;
+    }
+    return false;
 }
 
 void NpcAgentDemoNode::update_debug_label() {
