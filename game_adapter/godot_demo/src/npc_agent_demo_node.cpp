@@ -596,15 +596,58 @@ void NpcAgentDemoNode::register_map_obstacles(int width, int height) {
     }
 }
 
+std::vector<Vec3> NpcAgentDemoNode::find_path_avoiding(const NpcInstance& self, Vec3 from,
+                                                       Vec3 to) {
+    // 动态避障（R10-12）：临时把其他 NPC 与玩家的当前位置阻塞为障碍，求路径后
+    // 恢复。这样 A* 路径不会穿过正在移动的智能体——两 NPC 路径交叉相遇时，
+    // 双方都绕开对方当前位置，而不是 blocked 互等卡死。
+    struct TempBlock {
+        int col;
+        int row;
+        bool was_blocked;
+    };
+    std::vector<TempBlock> temp;
+    // 障碍膨胀为 3×3 单元（0.75u，覆盖 kAgentRadius=0.35u 半径）：A* 路径从
+    // 智能体旁至少 0.375u 经过，blocked_check（0.35u）不会再挡绕行路径。
+    const auto block_around = [this, &temp](const Vec3& p) {
+        const auto cell = grid_.world_to_cell(p);
+        if (!cell.has_value())
+            return;
+        for (int dc = -1; dc <= 1; ++dc) {
+            for (int dr = -1; dr <= 1; ++dr) {
+                const int c = cell->first + dc;
+                const int r = cell->second + dr;
+                if (!grid_.in_bounds(c, r))
+                    continue;
+                temp.push_back({c, r, grid_.is_blocked(c, r)});
+            }
+        }
+    };
+    for (const auto& other : npcs_) {
+        if (&other == &self)
+            continue;
+        block_around(other.body.body_state().position);
+    }
+    if (const auto pp = world_.entity_pos("player"); pp.has_value())
+        block_around(*pp);
+    for (const auto& t : temp)
+        grid_.set_obstacle(t.col, t.row, true);
+    auto path = world_.find_path(from, to);
+    for (const auto& t : temp)
+        grid_.set_obstacle(t.col, t.row, t.was_blocked);
+    return path;
+}
+
 void NpcAgentDemoNode::plan_paths_and_report() {
-    // 阶段 3（R10）：新移动意图 → 经 world_.find_path（GridNav A*）注入航点，
-    // 并刷新路线可视化。到达回投见 _process（tick 前消费，R10 修复——
+    // 阶段 3（R10）：新移动意图 → 经动态避障寻路（GridNav A*，绕开其他 NPC/玩家）
+    // 注入航点，并刷新路线可视化。到达回投见 _process（tick 前消费，R10 修复——
     // FSM 每 tick 重发同一移动意图会经 execute→move_to 重置到达标志）。
     for (auto& npc : npcs_) {
         const auto& intent = npc.agent->last_intent();
         if (intent.has_value() && std::holds_alternative<MoveIntent>(intent->payload)) {
             const auto& move = std::get<MoveIntent>(intent->payload);
-            const auto path = world_.find_path(npc.agent->body_state().position, move.target);
+            const auto path =
+                find_path_avoiding(npc, npc.agent->body_state().position, move.target);
             if (!path.empty())
                 npc.body.set_path(path, move.speed);
             update_path_visual(npc, path);
@@ -712,12 +755,12 @@ void NpcAgentDemoNode::place_obstacle(float dir_x, float dir_y) {
     box->set_size(godot::Vector2(px_per_cell * 2.0f, px_per_cell * 2.0f));
     box->set_color(godot::Color(0.62f, 0.47f, 0.25f, 1.0f));
     add_child(box);
-    // 途中障碍触发重规划：移动中的 NPC 立即重新寻路到原目标。
+    // 途中障碍触发重规划：移动中的 NPC 立即重新寻路到原目标（同样绕开其他智能体）。
     for (auto& npc : npcs_) {
         if (!npc.body.is_moving())
             continue;
         const auto path =
-            world_.find_path(npc.agent->body_state().position, npc.body.path_target());
+            find_path_avoiding(npc, npc.agent->body_state().position, npc.body.path_target());
         if (!path.empty())
             npc.body.set_path(path, npc.body.move_speed());
     }

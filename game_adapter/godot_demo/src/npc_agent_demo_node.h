@@ -73,6 +73,9 @@ private:
     void draw_map(int width, int height);               // 装饰地图（地面/道路/建筑/树木，R7-12）
     void register_map_obstacles(int width, int height); // 建筑→网格障碍（阶段 3）
     void plan_paths_and_report(); // 移动意图→A* 路径注入 + 到达回投（阶段 3，R10）
+    // 动态避障寻路（R10-12）：临时把其他 NPC 与玩家的当前位置视为障碍求路径，
+    // 返回后恢复网格——路径不会穿过正在移动的智能体，相遇时绕行而非互相卡死。
+    std::vector<Vec3> find_path_avoiding(const NpcInstance& self, Vec3 from, Vec3 to);
     void update_path_visual(NpcInstance& npc, const std::vector<Vec3>& path); // 路线标记刷新
     void update_debug_label(); // 调试面板刷新（多 NPC 逐行）
     void inject_player_flags(core::Agent& agent, float near_distance); // 距离/近距旗标
