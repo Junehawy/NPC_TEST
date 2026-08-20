@@ -749,9 +749,11 @@ void NpcAgentDemoNode::place_obstacle(float dir_x, float dir_y) {
     const float px_per_cell = cfg_.scene.scale * grid_.cell_size();
     const godot::Vector2 center(static_cast<float>(cfg_.scene.window_width) / 2.0f,
                                 static_cast<float>(cfg_.scene.window_height) / 2.0f);
+    // 像素位置 = 窗口中心 + 单元中心世界坐标 × 缩放（必须含网格 origin 偏移，
+    // 否则木箱会画到窗口外——R10-13 修复）。
+    const Vec3 w0 = grid_.cell_to_world(px0, py0);
     auto* box = memnew(godot::ColorRect);
-    box->set_position(center + godot::Vector2(static_cast<float>(px0) * px_per_cell,
-                                              static_cast<float>(py0) * px_per_cell));
+    box->set_position(center + godot::Vector2(w0.x * cfg_.scene.scale, w0.y * cfg_.scene.scale));
     box->set_size(godot::Vector2(px_per_cell * 2.0f, px_per_cell * 2.0f));
     box->set_color(godot::Color(0.62f, 0.47f, 0.25f, 1.0f));
     add_child(box);
