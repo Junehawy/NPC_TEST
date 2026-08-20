@@ -65,6 +65,7 @@ const MapBuilding kBuildings[] = {
     {-4.6f, -2.4f, 1.5f, 1.0f, godot::Color(0.36f, 0.36f, 0.40f, 1.0f)}, // 石屋
     {-4.6f, 2.2f, 1.2f, 0.8f, godot::Color(0.40f, 0.30f, 0.22f, 1.0f)},  // 木屋
     {2.6f, -2.2f, 1.2f, 0.8f, godot::Color(0.45f, 0.42f, 0.36f, 1.0f)},  // 仓库
+    {3.6f, 0.9f, 0.9f, 0.7f, godot::Color(0.50f, 0.35f, 0.55f, 1.0f)},   // 花店（挡支援兵绕行）
 };
 
 // 池塘（障碍，蓝色）与围墙（障碍，灰色细带）——丰富地图层次（R10）。
@@ -75,13 +76,35 @@ const MapBuilding kFence[] = {
     {-4.8f, 3.2f, 9.6f, 0.16f, godot::Color(0.52f, 0.48f, 0.42f, 1.0f)},
 };
 
+// 道路（世界坐标矩形，非障碍；画完整路网——横向主路 y=0 + 上下辅路、纵向道路，
+// 让城镇有整体布局而非一条线，R10-14）。
+struct MapRoad {
+    float x;
+    float y;
+    float w;
+    float h;
+};
+const MapRoad kRoads[] = {
+    // 横向：主路（y≈0）与南北辅路
+    {-6.4f, -0.55f, 12.8f, 1.10f}, // 主路横贯
+    {-6.4f, 2.35f, 12.8f, 0.80f},  // 北辅路
+    {-6.4f, -2.65f, 12.8f, 0.80f}, // 南辅路
+    // 纵向：西街/中街/东街
+    {-3.2f, -3.6f, 0.80f, 7.2f}, // 西街
+    {0.6f, -3.6f, 0.80f, 7.2f},  // 中街
+    {3.4f, -3.6f, 0.80f, 7.2f},  // 东街
+};
+
 // 树木（世界坐标树心；树冠半径 26px ≈ 0.26u → 注册为单单元障碍，不可穿过）。
 const Vec3 kTreePos[] = {{-4.2f, -1.8f, 0.0f}, {-3.4f, 2.6f, 0.0f},  {4.4f, -2.2f, 0.0f},
                          {5.6f, 2.4f, 0.0f},   {-1.6f, -2.2f, 0.0f}, {-0.4f, 2.9f, 0.0f},
-                         {3.8f, 2.8f, 0.0f},   {5.8f, -2.6f, 0.0f},  {-2.2f, -2.8f, 0.0f}};
+                         {3.8f, 2.8f, 0.0f},   {5.8f, -2.6f, 0.0f},  {-2.2f, -2.8f, 0.0f},
+                         {-5.2f, -0.4f, 0.0f}, {4.8f, 0.3f, 0.0f},   {-0.2f, -2.9f, 0.0f},
+                         {2.2f, -2.4f, 0.0f}};
 
 // 智能体（NPC/玩家）动态占据半径（世界单位）：互不穿透的最近间距。
 constexpr float kAgentRadius = 0.35f;
+
 } // namespace
 
 void NpcAgentDemoNode::_bind_methods() {
@@ -472,7 +495,8 @@ void NpcAgentDemoNode::build_multi_npc_scene(const WorldTransform& transform) {
 }
 
 void NpcAgentDemoNode::draw_map(int width, int height) {
-    // 装饰地图（R7-12）：纯视觉分层；建筑为真实障碍（register_map_obstacles）。
+    // 装饰地图（R7-12）：纯视觉分层；建筑/池塘/围墙/树木为真实障碍
+    // （register_map_obstacles 同一张表）。R10-14：完整道路网 + 屋顶/门窗细节。
     const float center_x = static_cast<float>(width) / 2.0f;
     const float center_y = static_cast<float>(height) / 2.0f;
     const float scale = cfg_.scene.scale;
@@ -483,25 +507,86 @@ void NpcAgentDemoNode::draw_map(int width, int height) {
     ground->set_color(godot::Color(0.16f, 0.24f, 0.14f, 1.0f)); // 草地
     add_child(ground);
 
-    auto* road = memnew(godot::ColorRect);
-    road->set_position(godot::Vector2(0.0f, static_cast<float>(height) * 0.62f));
-    road->set_size(godot::Vector2(static_cast<float>(width), static_cast<float>(height) * 0.18f));
-    road->set_color(godot::Color(0.42f, 0.40f, 0.36f, 1.0f)); // 道路
-    add_child(road);
-    auto* road_line = memnew(godot::ColorRect);
-    road_line->set_position(godot::Vector2(0.0f, static_cast<float>(height) * 0.705f));
-    road_line->set_size(godot::Vector2(static_cast<float>(width), 3.0f));
-    road_line->set_color(godot::Color(0.85f, 0.83f, 0.55f, 1.0f)); // 中线
-    add_child(road_line);
-
-    // 建筑：世界坐标 → 像素（与 register_map_obstacles 同一张表，位置自适应窗口）。
-    for (const auto& b : kBuildings) {
-        auto* building = memnew(godot::ColorRect);
-        building->set_position(godot::Vector2(center_x + b.x * scale, center_y + b.y * scale));
-        building->set_size(godot::Vector2(b.w * scale, b.h * scale));
-        building->set_color(b.color);
-        add_child(building);
+    // 道路网（kRoads 表）：横向主路/辅路 + 纵向街道，非障碍。
+    for (const auto& r : kRoads) {
+        auto* road = memnew(godot::ColorRect);
+        road->set_position(godot::Vector2(center_x + r.x * scale, center_y + r.y * scale));
+        road->set_size(godot::Vector2(r.w * scale, r.h * scale));
+        road->set_color(godot::Color(0.44f, 0.42f, 0.38f, 1.0f)); // 道路
+        add_child(road);
     }
+    // 主路中线（世界坐标：主路 y≈0 的水平中线 + 纵向街道的竖直中线）。
+    const float road_margin = 0.12f; // 中线离路边留白
+    auto* road_line_h = memnew(godot::ColorRect);
+    road_line_h->set_position(
+        godot::Vector2(center_x + (-6.4f) * scale, center_y + (0.0f - road_margin) * scale));
+    road_line_h->set_size(godot::Vector2(12.8f * scale, 3.0f));
+    road_line_h->set_color(godot::Color(0.85f, 0.83f, 0.55f, 1.0f)); // 中线
+    add_child(road_line_h);
+    for (const float x0 : {-3.2f, 0.6f, 3.4f}) {
+        auto* road_line_v = memnew(godot::ColorRect);
+        road_line_v->set_position(
+            godot::Vector2(center_x + (x0 - road_margin) * scale, center_y + (-3.6f) * scale));
+        road_line_v->set_size(godot::Vector2(3.0f, 7.2f * scale));
+        road_line_v->set_color(godot::Color(0.85f, 0.83f, 0.55f, 1.0f));
+        add_child(road_line_v);
+    }
+
+    // 建筑（R10-14）：墙体 + 多边形屋顶 + 门窗，避免"全是矩形"。
+    for (const auto& b : kBuildings) {
+        const float bx = center_x + b.x * scale;
+        const float by = center_y + b.y * scale;
+        const float bw = b.w * scale;
+        const float bh = b.h * scale;
+        auto* wall = memnew(godot::ColorRect);
+        wall->set_position(godot::Vector2(bx, by));
+        wall->set_size(godot::Vector2(bw, bh));
+        wall->set_color(b.color);
+        add_child(wall);
+        // 屋顶：梯形多边形（上窄下宽，占上部 40%）。
+        const float roof_h = bh * 0.45f;
+        auto* roof = memnew(godot::Polygon2D);
+        godot::PackedVector2Array rp;
+        rp.push_back(godot::Vector2(bx + bw * 0.08f, by + roof_h));
+        rp.push_back(godot::Vector2(bx + bw * 0.92f, by + roof_h));
+        rp.push_back(godot::Vector2(bx + bw * 0.98f, by));
+        rp.push_back(godot::Vector2(bx + bw * 0.02f, by));
+        roof->set_polygon(rp);
+        roof->set_color(godot::Color(b.color.r * 0.55f, b.color.g * 0.45f, b.color.b * 0.4f, 1.0f));
+        add_child(roof);
+        // 门：底部中央深色小矩形。
+        auto* door = memnew(godot::ColorRect);
+        door->set_position(godot::Vector2(bx + bw * 0.42f, by + bh * 0.72f));
+        door->set_size(godot::Vector2(bw * 0.16f, bh * 0.28f));
+        door->set_color(godot::Color(0.25f, 0.16f, 0.10f, 1.0f));
+        add_child(door);
+        // 窗：上部两侧亮色小方块。
+        for (const float wx : {0.18f, 0.66f}) {
+            auto* win = memnew(godot::ColorRect);
+            win->set_position(godot::Vector2(bx + bw * wx, by + bh * 0.48f));
+            win->set_size(godot::Vector2(bw * 0.14f, bh * 0.16f));
+            win->set_color(godot::Color(0.85f, 0.85f, 0.70f, 1.0f));
+            add_child(win);
+        }
+    }
+
+    // 池塘：椭圆多边形 + 涟漪亮带。
+    for (const auto& p : kPond) {
+        const float px = center_x + p.x * scale;
+        const float py = center_y + p.y * scale;
+        auto* pond = memnew(godot::Polygon2D);
+        godot::PackedVector2Array pp;
+        constexpr int kPondSides = 12;
+        for (int s = 0; s < kPondSides; ++s) {
+            const double a = 2.0 * 3.141592653589793 * s / kPondSides;
+            pp.push_back(godot::Vector2(px + p.w * 0.5f * scale * static_cast<float>(std::cos(a)),
+                                        py + p.h * 0.5f * scale * static_cast<float>(std::sin(a))));
+        }
+        pond->set_polygon(pp);
+        pond->set_color(godot::Color(0.24f, 0.45f, 0.75f, 0.9f));
+        add_child(pond);
+    }
+    // 围墙：细带（矩形保持）。
 
     // 树木：八边形树冠 + 树桩（世界坐标；树心注册为障碍，见 register_map_obstacles）。
     for (const auto& tree : kTreePos) {
