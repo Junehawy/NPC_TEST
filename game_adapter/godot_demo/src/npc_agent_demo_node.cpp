@@ -9,6 +9,7 @@
 
 #include <godot_cpp/classes/color_rect.hpp>
 #include <godot_cpp/classes/display_server.hpp>
+#include <godot_cpp/classes/engine.hpp>
 #include <godot_cpp/classes/file_access.hpp>
 #include <godot_cpp/classes/os.hpp>
 #include <godot_cpp/classes/polygon2d.hpp>
@@ -626,6 +627,12 @@ void NpcAgentDemoNode::update_path_visual(NpcInstance& npc, const std::vector<Ve
 void NpcAgentDemoNode::place_obstacle(float dir_x, float dir_y) {
     if (!ready_ || npcs_.empty())
         return;
+    // E 键限频（15 帧 ≈ 0.25s@60fps）：按住 E 会触发 key repeat（每帧一次），
+    // 无冷却会瞬间把周围放满后连续报"无法放置"。冷却让每次按 E 稳定放置一个。
+    const uint64_t now = godot::Engine::get_singleton()->get_process_frames();
+    if (now - last_place_ms_ < 15)
+        return;
+    last_place_ms_ = now;
     const auto player_pos = world_.entity_pos("player");
     if (!player_pos.has_value())
         return;
@@ -639,23 +646,28 @@ void NpcAgentDemoNode::place_obstacle(float dir_x, float dir_y) {
     if (dx == 0 && dy == 0)
         dx = 1;
     // 候选方向：前 → 顺时针 → 逆时针 → 反（前方被堵时退而求其次，避免围死自己）。
+    // 每个方向从近到远（2→20 单元）找第一个可放置的 2×2 块：连续按 E 会沿视线
+    // 向前排布木箱（跳过已放区域找最近空位），而非原地放满后开始失败。
     const std::pair<int, int> kCands[] = {{dx, dy}, {-dy, dx}, {dy, -dx}, {-dx, -dy}};
     int px0 = 0, py0 = 0;
     bool placed = false;
     for (const auto& [cx, cy] : kCands) {
-        const int x0 = cell->first + cx * 2;
-        const int y0 = cell->second + cy * 2;
-        bool ok = true;
-        for (int ox = 0; ox < 2 && ok; ++ox)
-            for (int oy = 0; oy < 2 && ok; ++oy)
-                if (!grid_.in_bounds(x0 + ox, y0 + oy) || grid_.is_blocked(x0 + ox, y0 + oy))
-                    ok = false;
-        if (ok) {
-            px0 = x0;
-            py0 = y0;
-            placed = true;
-            break;
+        for (int dist = 2; dist <= 20 && !placed; ++dist) {
+            const int x0 = cell->first + cx * dist;
+            const int y0 = cell->second + cy * dist;
+            bool ok = true;
+            for (int ox = 0; ox < 2 && ok; ++ox)
+                for (int oy = 0; oy < 2 && ok; ++oy)
+                    if (!grid_.in_bounds(x0 + ox, y0 + oy) || grid_.is_blocked(x0 + ox, y0 + oy))
+                        ok = false;
+            if (ok) {
+                px0 = x0;
+                py0 = y0;
+                placed = true;
+            }
         }
+        if (placed)
+            break;
     }
     if (!placed) {
         godot::UtilityFunctions::print(godot::String::utf8("[demo] 四周都被挡住，无法放置木箱"));

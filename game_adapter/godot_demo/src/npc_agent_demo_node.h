@@ -95,6 +95,7 @@ private:
     godot::Label* bubble_label_ = nullptr;
     godot::Label* debug_label_ = nullptr;
     double alarm_time_left_ = 0.0; // 警戒剩余时间（旧模式；>0 时黑板 alarm=true）
+    uint64_t last_place_ms_ = 0;   // 上次放置木箱的毫秒时间戳（E 键限频，防按住连放）
 };
 
 } // namespace npc_agent::adapter::godot_demo
