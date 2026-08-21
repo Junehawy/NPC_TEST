@@ -506,6 +506,18 @@ void NpcAgentDemoNode::draw_map(int width, int height) {
     ground->set_size(godot::Vector2(static_cast<float>(width), static_cast<float>(height)));
     ground->set_color(godot::Color(0.16f, 0.24f, 0.14f, 1.0f)); // 草地
     add_child(ground);
+    // 草地纹理斑点：深浅相间的小点，避免纯色一片（R10-16）。
+    for (int i = 0; i < 220; ++i) {
+        const float gx = static_cast<float>((i * 137) % width);
+        const float gy = static_cast<float>((i * 89) % height);
+        const bool dark = (i % 3) == 0;
+        auto* grass = memnew(godot::ColorRect);
+        grass->set_position(godot::Vector2(gx, gy));
+        grass->set_size(godot::Vector2(3.0f, 3.0f));
+        grass->set_color(dark ? godot::Color(0.11f, 0.18f, 0.10f, 0.8f)
+                              : godot::Color(0.24f, 0.34f, 0.20f, 0.8f));
+        add_child(grass);
+    }
 
     // 道路网（kRoads 表）：横向主路/辅路 + 纵向街道，非障碍。
     for (const auto& r : kRoads) {
@@ -530,6 +542,16 @@ void NpcAgentDemoNode::draw_map(int width, int height) {
         road_line_v->set_size(godot::Vector2(3.0f, 7.2f * scale));
         road_line_v->set_color(godot::Color(0.85f, 0.83f, 0.55f, 1.0f));
         add_child(road_line_v);
+    }
+    // 主路路缘（浅色边线，增强道路感）。
+    const float curb_w = 0.08f;
+    for (const float cy : {-0.55f, 0.55f}) {
+        auto* curb = memnew(godot::ColorRect);
+        curb->set_position(godot::Vector2(center_x + (-6.4f) * scale,
+                                          center_y + (cy + (cy > 0 ? -curb_w : 0.0f)) * scale));
+        curb->set_size(godot::Vector2(12.8f * scale, curb_w * scale));
+        curb->set_color(godot::Color(0.58f, 0.55f, 0.50f, 1.0f));
+        add_child(curb);
     }
 
     // 建筑（R10-14）：墙体 + 多边形屋顶 + 门窗，避免"全是矩形"。
@@ -568,6 +590,17 @@ void NpcAgentDemoNode::draw_map(int width, int height) {
             win->set_color(godot::Color(0.85f, 0.85f, 0.70f, 1.0f));
             add_child(win);
         }
+        // 烟囱（右上小矩形，高于屋顶）+ 地基阴影（底部深色带）。
+        auto* chimney = memnew(godot::ColorRect);
+        chimney->set_position(godot::Vector2(bx + bw * 0.74f, by - bh * 0.12f));
+        chimney->set_size(godot::Vector2(bw * 0.12f, bh * 0.22f));
+        chimney->set_color(godot::Color(0.30f, 0.22f, 0.18f, 1.0f));
+        add_child(chimney);
+        auto* foundation = memnew(godot::ColorRect);
+        foundation->set_position(godot::Vector2(bx, by + bh - 4.0f));
+        foundation->set_size(godot::Vector2(bw, 4.0f));
+        foundation->set_color(godot::Color(0.0f, 0.0f, 0.0f, 0.25f));
+        add_child(foundation);
     }
 
     // 池塘：椭圆多边形 + 涟漪亮带。
@@ -588,7 +621,7 @@ void NpcAgentDemoNode::draw_map(int width, int height) {
     }
     // 围墙：细带（矩形保持）。
 
-    // 树木：八边形树冠 + 树桩（世界坐标；树心注册为障碍，见 register_map_obstacles）。
+    // 树木：双层树冠（深色底 + 浅色高光）+ 树桩 + 投影（R10-16 视觉增强）。
     for (const auto& tree : kTreePos) {
         const float tx = center_x + tree.x * scale;
         const float ty = center_y + tree.y * scale;
@@ -601,13 +634,67 @@ void NpcAgentDemoNode::draw_map(int width, int height) {
                                             ty + static_cast<float>(std::sin(angle)) * 26.0f));
         }
         crown->set_polygon(points);
-        crown->set_color(godot::Color(0.14f, 0.45f, 0.16f, 1.0f));
+        crown->set_color(godot::Color(0.12f, 0.38f, 0.13f, 1.0f));
         add_child(crown);
+        // 高光层：向右下偏移的小八边形，模拟受光。
+        auto* highlight = memnew(godot::Polygon2D);
+        godot::PackedVector2Array hp;
+        for (int s = 0; s < kSides; ++s) {
+            const double angle = 2.0 * 3.141592653589793 * s / kSides;
+            hp.push_back(godot::Vector2(tx - 4.0f + static_cast<float>(std::cos(angle)) * 14.0f,
+                                        ty - 5.0f + static_cast<float>(std::sin(angle)) * 14.0f));
+        }
+        highlight->set_polygon(hp);
+        highlight->set_color(godot::Color(0.28f, 0.62f, 0.30f, 0.9f));
+        add_child(highlight);
         auto* trunk = memnew(godot::ColorRect);
-        trunk->set_position(godot::Vector2(tx - 4.0f, ty + 22.0f));
-        trunk->set_size(godot::Vector2(8.0f, 14.0f));
-        trunk->set_color(godot::Color(0.38f, 0.27f, 0.16f, 1.0f));
+        trunk->set_position(godot::Vector2(tx - 4.0f, ty + 20.0f));
+        trunk->set_size(godot::Vector2(8.0f, 15.0f));
+        trunk->set_color(godot::Color(0.42f, 0.30f, 0.17f, 1.0f));
         add_child(trunk);
+        auto* trunk_dark = memnew(godot::ColorRect);
+        trunk_dark->set_position(godot::Vector2(tx - 4.0f, ty + 30.0f));
+        trunk_dark->set_size(godot::Vector2(8.0f, 5.0f));
+        trunk_dark->set_color(godot::Color(0.30f, 0.21f, 0.12f, 1.0f));
+        add_child(trunk_dark);
+    }
+
+    // 花坛装饰（非障碍）：小圆簇，点缀街角与路旁。
+    const Vec3 kFlowerBeds[] = {{-1.2f, 1.1f, 0.0f}, {2.2f, 1.3f, 0.0f},  {-3.4f, -2.2f, 0.0f},
+                                {3.8f, -1.8f, 0.0f}, {0.4f, -2.6f, 0.0f}, {-5.6f, 0.6f, 0.0f},
+                                {5.2f, 0.9f, 0.0f},  {-2.6f, -0.8f, 0.0f}};
+    for (const auto& fb : kFlowerBeds) {
+        const float fx = center_x + fb.x * scale;
+        const float fy = center_y + fb.y * scale;
+        for (int i = 0; i < 5; ++i) {
+            const float ox = static_cast<float>((i % 3) - 1) * 7.0f;
+            const float oy = static_cast<float>((i / 3) - 1) * 7.0f;
+            auto* flower = memnew(godot::ColorRect);
+            flower->set_position(godot::Vector2(fx + ox, fy + oy));
+            flower->set_size(godot::Vector2(6.0f, 6.0f));
+            flower->set_color(
+                godot::Color(0.86f, 0.35f + 0.1f * (i % 3), 0.45f + 0.15f * (i % 2), 0.95f));
+            add_child(flower);
+        }
+    }
+
+    // 路灯（非障碍）：灯柱 + 灯头，沿主路两侧。
+    const float kLampXs[] = {-5.0f, -2.0f, 1.0f, 4.0f, 5.8f};
+    for (const float lx : kLampXs) {
+        for (const float ly : {1.1f, -1.1f}) {
+            const float lpx = center_x + lx * scale;
+            const float lpy = center_y + ly * scale;
+            auto* pole = memnew(godot::ColorRect);
+            pole->set_position(godot::Vector2(lpx - 2.0f, lpy - 14.0f));
+            pole->set_size(godot::Vector2(4.0f, 28.0f));
+            pole->set_color(godot::Color(0.35f, 0.35f, 0.38f, 1.0f));
+            add_child(pole);
+            auto* lamp = memnew(godot::ColorRect);
+            lamp->set_position(godot::Vector2(lpx - 5.0f, lpy - 20.0f));
+            lamp->set_size(godot::Vector2(10.0f, 6.0f));
+            lamp->set_color(godot::Color(1.0f, 0.88f, 0.55f, 0.95f));
+            add_child(lamp);
+        }
     }
 }
 

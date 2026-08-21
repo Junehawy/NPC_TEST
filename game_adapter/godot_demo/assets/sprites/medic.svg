@@ -1,8 +1,35 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
-  <circle cx="32" cy="30" r="22" fill="#e8f0fa" stroke="#8a1f1f" stroke-width="4"/>
-  <rect x="28" y="10" width="8" height="40" rx="3" fill="#d43b3b" stroke="#8a1f1f" stroke-width="3"/>
-  <rect x="18" y="20" width="28" height="8" rx="3" fill="#d43b3b" stroke="#8a1f1f" stroke-width="3"/>
-  <circle cx="25" cy="27" r="2.5" fill="#8a1f1f"/>
-  <circle cx="39" cy="27" r="2.5" fill="#8a1f1f"/>
-  <path d="M 22 44 Q 32 48 42 44" stroke="#8a1f1f" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <!-- 支援兵：白大褂 + 红十字 + 医疗包 -->
+  <ellipse cx="32" cy="61" rx="18" ry="3" fill="#00000033"/>
+  <!-- 腿 -->
+  <rect x="24" y="52" width="6" height="8" rx="2.5" fill="#5a6470"/>
+  <rect x="34" y="52" width="6" height="8" rx="2.5" fill="#5a6470"/>
+  <rect x="22.5" y="58.5" width="9" height="3.5" rx="1.5" fill="#3d4650"/>
+  <rect x="32.5" y="58.5" width="9" height="3.5" rx="1.5" fill="#3d4650"/>
+  <!-- 躯干（白大褂） -->
+  <path d="M 20 44 L 44 44 L 41 54 L 23 54 Z" fill="#eef2f6" stroke="#8a1f1f" stroke-width="2.5"/>
+  <!-- 红十字 -->
+  <path d="M 28.5 46 L 35.5 46 M 32 42.5 L 32 49.5" stroke="#d43b3b" stroke-width="5" stroke-linecap="round"/>
+  <!-- 口袋 -->
+  <rect x="22" y="49" width="7" height="5" rx="1.5" fill="#d5dde5"/>
+  <!-- 手臂 -->
+  <path d="M 20 45 Q 14 48 15 53" stroke="#eef2f6" stroke-width="6" fill="none" stroke-linecap="round"/>
+  <path d="M 44 45 Q 50 48 49 53" stroke="#eef2f6" stroke-width="6" fill="none" stroke-linecap="round"/>
+  <circle cx="15" cy="54" r="2.8" fill="#e8c39e"/>
+  <circle cx="49" cy="54" r="2.8" fill="#e8c39e"/>
+  <!-- 头 -->
+  <circle cx="32" cy="27" r="14" fill="#e8c39e" stroke="#c99b72" stroke-width="2"/>
+  <!-- 护士帽 -->
+  <path d="M 17 20 Q 17 11 32 11 Q 47 11 47 20 L 47 17 Q 32 6 17 17 Z" fill="#ffffff" stroke="#8a1f1f" stroke-width="2.5"/>
+  <rect x="26" y="9" width="12" height="5" rx="2.5" fill="#d43b3b" stroke="#8a1f1f" stroke-width="1.5"/>
+  <!-- 眼睛 -->
+  <circle cx="26.5" cy="29" r="2.6" fill="#2a3540"/>
+  <circle cx="37.5" cy="29" r="2.6" fill="#2a3540"/>
+  <circle cx="27.3" cy="28.2" r="0.9" fill="#ffffff"/>
+  <circle cx="38.3" cy="28.2" r="0.9" fill="#ffffff"/>
+  <!-- 嘴（温柔笑） -->
+  <path d="M 28 36 Q 32 38 36 36" stroke="#a5724d" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <!-- 腮红 -->
+  <circle cx="22.5" cy="34" r="2.5" fill="#f0a0a088"/>
+  <circle cx="41.5" cy="34" r="2.5" fill="#f0a0a088"/>
 </svg>

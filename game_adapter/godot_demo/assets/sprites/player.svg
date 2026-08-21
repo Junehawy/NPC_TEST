@@ -1,6 +1,36 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
-  <circle cx="32" cy="32" r="26" fill="#3fbf5f" stroke="#1e6b33" stroke-width="4"/>
-  <circle cx="24" cy="26" r="5" fill="#e8ffe8"/>
-  <circle cx="40" cy="26" r="5" fill="#e8ffe8"/>
-  <path d="M 22 40 Q 32 46 42 40" stroke="#1e6b33" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <!-- 玩家（旅行者）：红斗篷 + 金色腰带 -->
+  <ellipse cx="32" cy="61" rx="18" ry="3" fill="#00000033"/>
+  <!-- 腿 -->
+  <rect x="24" y="52" width="6" height="8" rx="2.5" fill="#3a3f47"/>
+  <rect x="34" y="52" width="6" height="8" rx="2.5" fill="#3a3f47"/>
+  <rect x="22.5" y="58.5" width="9" height="3.5" rx="1.5" fill="#23272e"/>
+  <rect x="32.5" y="58.5" width="9" height="3.5" rx="1.5" fill="#23272e"/>
+  <!-- 斗篷 -->
+  <path d="M 19 42 L 45 42 L 42 54 L 22 54 Z" fill="#c0392b" stroke="#7e2418" stroke-width="2.5"/>
+  <path d="M 19 42 L 45 42 L 43 48 L 21 48 Z" fill="#e0503f"/>
+  <!-- 腰带 -->
+  <rect x="20.5" y="47" width="23" height="4" rx="2" fill="#7e2418"/>
+  <rect x="29" y="46" width="6" height="6" rx="1.5" fill="#f2c14e" stroke="#b98a1e" stroke-width="1.2"/>
+  <!-- 手臂 -->
+  <path d="M 19 43 Q 13 47 14 52" stroke="#c0392b" stroke-width="6" fill="none" stroke-linecap="round"/>
+  <path d="M 45 43 Q 51 47 50 52" stroke="#c0392b" stroke-width="6" fill="none" stroke-linecap="round"/>
+  <circle cx="14" cy="53" r="2.8" fill="#e8c39e"/>
+  <circle cx="50" cy="53" r="2.8" fill="#e8c39e"/>
+  <!-- 头 -->
+  <circle cx="32" cy="27" r="14" fill="#e8c39e" stroke="#c99b72" stroke-width="2"/>
+  <!-- 头发 -->
+  <path d="M 18 26 Q 18 12 32 12 Q 46 12 46 26 L 46 20 Q 32 8 18 20 Z" fill="#5a3a22" stroke="#3a2413" stroke-width="1.5"/>
+  <!-- 发带 -->
+  <path d="M 32 13 Q 44 14 47 22" stroke="#f2c14e" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <!-- 眼睛 -->
+  <circle cx="26.5" cy="29" r="2.8" fill="#23272e"/>
+  <circle cx="37.5" cy="29" r="2.8" fill="#23272e"/>
+  <circle cx="27.4" cy="28.2" r="1" fill="#ffffff"/>
+  <circle cx="38.4" cy="28.2" r="1" fill="#ffffff"/>
+  <!-- 嘴 -->
+  <path d="M 28 36 Q 32 38.5 36 36" stroke="#a5724d" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <!-- 腮红 -->
+  <circle cx="22" cy="34" r="2.5" fill="#f0a0a088"/>
+  <circle cx="42" cy="34" r="2.5" fill="#f0a0a088"/>
 </svg>

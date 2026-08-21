@@ -1,8 +1,33 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
-  <rect x="10" y="14" width="44" height="42" rx="8" fill="#2b4f8f" stroke="#16294d" stroke-width="4"/>
-  <path d="M 14 22 A 18 8 0 0 1 50 22 L 50 18 L 14 18 Z" fill="#4a7fd4"/>
-  <rect x="24" y="24" width="16" height="18" rx="3" fill="#7fa8e8" stroke="#16294d" stroke-width="3"/>
-  <circle cx="28" cy="32" r="2.5" fill="#ffffff"/>
-  <circle cx="36" cy="32" r="2.5" fill="#ffffff"/>
-  <path d="M 20 44 L 44 44 L 41 50 L 23 50 Z" fill="#16294d"/>
+  <!-- 守卫：蓝制服 + 头盔 + 徽章 -->
+  <ellipse cx="32" cy="61" rx="19" ry="3" fill="#00000033"/>
+  <!-- 腿 -->
+  <rect x="24" y="52" width="6" height="8" rx="2.5" fill="#1d2b45"/>
+  <rect x="34" y="52" width="6" height="8" rx="2.5" fill="#1d2b45"/>
+  <rect x="22.5" y="58.5" width="9" height="3.5" rx="1.5" fill="#111a2e"/>
+  <rect x="32.5" y="58.5" width="9" height="3.5" rx="1.5" fill="#111a2e"/>
+  <!-- 躯干 -->
+  <path d="M 20 44 L 44 44 L 41 54 L 23 54 Z" fill="#2b4f8f" stroke="#16294d" stroke-width="2.5"/>
+  <!-- 腰带 -->
+  <rect x="20.5" y="48" width="23" height="4" rx="2" fill="#16294d"/>
+  <rect x="29.5" y="47" width="5" height="6" rx="1.5" fill="#f2c14e" stroke="#b98a1e" stroke-width="1.2"/>
+  <!-- 手臂 -->
+  <path d="M 20 45 Q 14 48 15 53" stroke="#2b4f8f" stroke-width="6" fill="none" stroke-linecap="round"/>
+  <path d="M 44 45 Q 50 48 49 53" stroke="#2b4f8f" stroke-width="6" fill="none" stroke-linecap="round"/>
+  <circle cx="15" cy="54" r="2.8" fill="#e8c39e"/>
+  <circle cx="49" cy="54" r="2.8" fill="#e8c39e"/>
+  <!-- 头 -->
+  <circle cx="32" cy="27" r="14" fill="#e8c39e" stroke="#c99b72" stroke-width="2"/>
+  <!-- 头盔 -->
+  <path d="M 17 27 Q 17 12 32 12 Q 47 12 47 27 L 47 21 L 17 21 Z" fill="#3d5c8f" stroke="#16294d" stroke-width="2.5"/>
+  <rect x="13" y="19" width="38" height="8" rx="4" fill="#2c4470" stroke="#16294d" stroke-width="2"/>
+  <!-- 眼睛 -->
+  <circle cx="26.5" cy="29" r="2.8" fill="#16294d"/>
+  <circle cx="37.5" cy="29" r="2.8" fill="#16294d"/>
+  <circle cx="27.4" cy="28.2" r="1" fill="#ffffff"/>
+  <circle cx="38.4" cy="28.2" r="1" fill="#ffffff"/>
+  <!-- 嘴 -->
+  <path d="M 28 36 Q 32 38.5 36 36" stroke="#a5724d" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <!-- 高光 -->
+  <ellipse cx="26" cy="16" rx="4" ry="2" fill="#ffffff22"/>
 </svg>
