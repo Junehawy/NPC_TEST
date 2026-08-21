@@ -39,8 +39,10 @@ public:
     // 宿主路径注入（阶段 3，R10）：把 A* 航点喂给身体，move_to 后由宿主调用；
     // 身体按航点序列行进，全部到达后置 arrival 待取。
     void set_path(std::vector<Vec3> waypoints, float speed);
-    void update_movement(double dt); // 沿路径推进并翻转朝向；到达后自动停止
-    void update_bubble(double dt);   // 气泡计时到期隐藏
+    void update_movement(double dt);  // 沿路径推进并翻转朝向；到达后自动停止
+    void update_bubble(double dt);    // 气泡计时到期隐藏
+    void tick_wait_budget(double dt); // 动态占据等待让步计时（宿主每帧调用，R10-17）
+    double wait_budget() const { return wait_budget_; } // 剩余让步预算（blocked_check 用）
 
     // 到达观测（阶段 3）：上次移动全部航点走完后返回 true 并复位（每段一次）。
     // 宿主据此 report_action_result(handle, "completed") → move_done 驱动 FSM。
@@ -74,6 +76,9 @@ private:
     ActionHandle last_move_handle_{};
     double bubble_time_left_ = 0.0;
     double emote_lock_left_ = 0.0; // 惊吓展示锁：期间台词不打断表情（视觉可见性）
+    double wait_budget_ = 0.0;     // 动态占据等待让步预算（秒；宿主每帧注入，见 R10-17）
+    bool waiting_ = false;         // 本帧是否被动态占据挡住（让步计时依据）
+    static constexpr double kMaxWaitBudget = 1.2; // 让步预算上限（秒）
     uint64_t next_handle_ = 1;
 };
 

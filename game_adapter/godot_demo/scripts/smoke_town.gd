@@ -56,7 +56,7 @@ func _process(_delta: float) -> bool:
 		var ok_crouch := _any_contains(gunshot_snapshots, "支援兵: EmoteIntent")
 		var ok_call := _any_contains(shout_snapshots, "守卫: SayIntent → \"呼叫支援")
 		var ok_respond := _any_contains(shout_snapshots, "支援兵: MoveIntent → (0.400000")
-		var ok_search := _any_contains(search_snapshots, "守卫: MoveIntent → (2.200000")
+		var ok_search := _any_contains(search_snapshots, "守卫: MoveIntent → (3.200000")
 		var ok_greet := _any_contains(greet_snapshots, "守卫: SayIntent → \"你好")
 		var ok_reshot_alert := _any_contains(reshot_snapshots, "守卫: EmoteIntent → startled")
 		var ok_reshot_flee := _any_contains(reshot_snapshots, "平民: MoveIntent → (-4.600000")

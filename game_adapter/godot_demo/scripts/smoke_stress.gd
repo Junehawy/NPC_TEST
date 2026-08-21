@@ -24,11 +24,12 @@ func _process(_delta: float) -> bool:
 		main.inject_gunshot()  # 场景 2：单次枪声
 	if frames == 2400 and scene == 2:
 		scene = 3
-		# 场景 3：玩家在中街连续放 3 个木箱挡路
+		# 场景 3：玩家在街区空地连放 3 个木箱（不封主干道），验证 NPC 绕行
 		var p = main.get_node("Player")
-		p.position = Vector2(640.0, 360.0)
+		p.position = Vector2(640.0 + (-2.4) * 100.0, 360.0 + 0.3 * 100.0)
 		for i in range(3):
 			main.place_obstacle(1.0, 0.0)
+		p.position = Vector2(640.0 + 3.6 * 100.0, 360.0)
 	if frames == 3600 and scene == 3:
 		scene = 4
 		# 场景 4：玩家靠近平民触发问候

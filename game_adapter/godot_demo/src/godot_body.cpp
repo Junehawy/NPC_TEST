@@ -76,6 +76,7 @@ ActionHandle GodotBody::dispatch_game_event(const GameEvent&) {
 
 void GodotBody::set_blocked_check(std::function<bool(Vec3)> check) {
     blocked_check_ = std::move(check);
+    wait_budget_ = kMaxWaitBudget;
 }
 
 void GodotBody::update_movement(double dt) {
@@ -104,9 +105,25 @@ void GodotBody::update_movement(double dt) {
     }
     const godot::Vector2 next_px = pos + delta_px.normalized() * step;
     // 步进位置被阻塞：本帧不移动，等待（碰撞语义，不穿行；moving_ 保持）。
-    if (blocked_check_ && blocked_check_(transform_.to_world(next_px)))
+    if (blocked_check_ && blocked_check_(transform_.to_world(next_px))) {
+        waiting_ = true;
         return;
+    }
+    waiting_ = false;
     npc_->set_position(next_px);
+}
+
+void GodotBody::tick_wait_budget(double dt) {
+    // 动态占据等待让步：持续被挡则耗尽预算（约 1.2s），此后 blocked_check
+    // 忽略其他 NPC/玩家（仅静态障碍仍挡）——多 NPC 交汇互等时打破死锁。
+    if (waiting_) {
+        wait_budget_ -= dt;
+        if (wait_budget_ < 0.0)
+            wait_budget_ = 0.0;
+    } else {
+        wait_budget_ = kMaxWaitBudget;
+    }
+    waiting_ = false; // 每帧复位，由本帧是否被挡重设
 }
 
 bool GodotBody::consume_arrival() {

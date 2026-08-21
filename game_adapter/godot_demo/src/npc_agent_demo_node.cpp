@@ -58,19 +58,20 @@ struct MapBuilding {
     godot::Color color;
 };
 const MapBuilding kBuildings[] = {
-    {-1.0f, -0.6f, 0.8f, 1.2f, godot::Color(0.55f, 0.35f, 0.25f, 1.0f)}, // 挡守卫巡逻
-    {0.2f, -0.6f, 0.8f, 1.2f, godot::Color(0.45f, 0.45f, 0.52f, 1.0f)},  // 挡守卫搜寻
-    {-2.8f, 1.2f, 1.2f, 0.9f, godot::Color(0.62f, 0.52f, 0.30f, 1.0f)},  // 市集棚
-    {1.2f, 0.7f, 1.2f, 1.0f, godot::Color(0.50f, 0.32f, 0.28f, 1.0f)},   // 挡支援兵响应
-    {-4.6f, -2.4f, 1.5f, 1.0f, godot::Color(0.36f, 0.36f, 0.40f, 1.0f)}, // 石屋
-    {-4.6f, 2.2f, 1.2f, 0.8f, godot::Color(0.40f, 0.30f, 0.22f, 1.0f)},  // 木屋
-    {2.6f, -2.2f, 1.2f, 0.8f, godot::Color(0.45f, 0.42f, 0.36f, 1.0f)},  // 仓库
-    {3.6f, 0.9f, 0.9f, 0.7f, godot::Color(0.50f, 0.35f, 0.55f, 1.0f)},   // 花店（挡支援兵绕行）
+    {-5.0f, 1.0f, 1.2f, 0.85f, godot::Color(0.40f, 0.30f, 0.22f, 1.0f)}, // 木屋（北西区）
+    {-2.4f, 1.1f, 1.4f, 0.8f, godot::Color(0.62f, 0.52f, 0.30f, 1.0f)},  // 市集棚（北区）
+    {1.5f, 1.1f, 0.9f, 0.8f, godot::Color(0.50f, 0.35f, 0.55f, 1.0f)},   // 花店（北东区）
+    {-1.6f, 1.15f, 0.9f, 0.8f, godot::Color(0.55f, 0.45f, 0.35f, 1.0f)}, // 旅店（北区）
+    {4.4f, 1.0f, 1.0f, 0.85f, godot::Color(0.55f, 0.55f, 0.60f, 1.0f)},  // 教堂（东北区）
+    {-5.0f, -1.7f, 1.3f, 0.9f, godot::Color(0.36f, 0.36f, 0.40f, 1.0f)}, // 石屋（南西区）
+    {-1.4f, -1.8f, 1.2f, 0.9f, godot::Color(0.45f, 0.42f, 0.36f, 1.0f)}, // 仓库（南区）
+    {1.5f, -1.9f, 1.0f, 0.9f, godot::Color(0.50f, 0.32f, 0.28f, 1.0f)},  // 民居（南东区）
+    {4.4f, -1.9f, 1.0f, 0.9f, godot::Color(0.55f, 0.50f, 0.35f, 1.0f)},  // 谷仓（东南区）
 };
 
-// 池塘（障碍，蓝色）与围墙（障碍，灰色细带）——丰富地图层次（R10）。
+// 池塘（障碍，南草带西端，不压道路）与围墙（北边界细带）。
 const MapBuilding kPond[] = {
-    {-3.6f, -1.8f, 1.0f, 0.7f, godot::Color(0.24f, 0.45f, 0.75f, 1.0f)},
+    {-5.4f, -1.4f, 1.0f, 0.6f, godot::Color(0.24f, 0.45f, 0.75f, 1.0f)},
 };
 const MapBuilding kFence[] = {
     {-4.8f, 3.2f, 9.6f, 0.16f, godot::Color(0.52f, 0.48f, 0.42f, 1.0f)},
@@ -95,12 +96,13 @@ const MapRoad kRoads[] = {
     {3.4f, -3.6f, 0.80f, 7.2f},  // 东街
 };
 
-// 树木（世界坐标树心；树冠半径 26px ≈ 0.26u → 注册为单单元障碍，不可穿过）。
-const Vec3 kTreePos[] = {{-4.2f, -1.8f, 0.0f}, {-3.4f, 2.6f, 0.0f},  {4.4f, -2.2f, 0.0f},
-                         {5.6f, 2.4f, 0.0f},   {-1.6f, -2.2f, 0.0f}, {-0.4f, 2.9f, 0.0f},
-                         {3.8f, 2.8f, 0.0f},   {5.8f, -2.6f, 0.0f},  {-2.2f, -2.8f, 0.0f},
-                         {-5.2f, -0.4f, 0.0f}, {4.8f, 0.3f, 0.0f},   {-0.2f, -2.9f, 0.0f},
-                         {2.2f, -2.4f, 0.0f}};
+// 树木（世界坐标树心；树冠半径 26px ≈ 0.26u → 注册为单单元障碍；全部在草带/街区，
+// 不占道路、不贴建筑——R10-17 布局校验通过）。
+const Vec3 kTreePos[] = {
+    {-6.2f, 1.5f},  {-6.2f, -0.8f}, {-6.2f, -2.1f}, {-5.0f, -2.1f}, {-3.8f, -2.1f},
+    {-2.0f, -0.8f}, {-2.0f, -2.1f}, {2.8f, 1.5f},   {6.1f, 1.5f},   {6.1f, -0.8f},
+    {6.1f, -2.1f},  {-4.6f, 2.9f},  {-0.8f, 2.9f},  {2.4f, 2.9f},   {4.6f, 2.9f},
+};
 
 // 智能体（NPC/玩家）动态占据半径（世界单位）：互不穿透的最近间距。
 constexpr float kAgentRadius = 0.35f;
@@ -150,6 +152,7 @@ void NpcAgentDemoNode::_process(double delta) {
     } else {
         for (auto& npc : npcs_) {
             npc.body.update_movement(delta);
+            npc.body.tick_wait_budget(delta); // 动态占据等待让步（R10-17）
             npc.body.update_bubble(delta);
         }
     }
@@ -453,10 +456,14 @@ void NpcAgentDemoNode::build_multi_npc_scene(const WorldTransform& transform) {
         npc.body.bind(npc.node, npc.sprite, npc.bubble, transform, cfg_.body);
         // 碰撞检查（R10）：移动不得进入阻塞单元（建筑/木箱/树木）或穿越其他
         // 智能体（NPC 互不穿透 + 不穿玩家；self_node 排除自身）。
-        npc.body.set_blocked_check([this, self_node = npc.node](Vec3 world) {
+        npc.body.set_blocked_check([this, self_node = npc.node, self_npc = &npc](Vec3 world) {
             const auto cell = grid_.world_to_cell(world);
             if (cell.has_value() && grid_.is_blocked(cell->first, cell->second))
                 return true;
+            // 动态占据：其他 NPC / 玩家。等待超时（>1s，见 GodotBody 等待让步）
+            // 后不再互挡——多 NPC 交汇时避免互相死锁。
+            if (self_npc->body.wait_budget() <= 0.0)
+                return false;
             for (const auto& other : npcs_) {
                 if (other.node == self_node)
                     continue;
@@ -659,9 +666,9 @@ void NpcAgentDemoNode::draw_map(int width, int height) {
         add_child(trunk_dark);
     }
 
-    // 花坛装饰（非障碍）：小圆簇，点缀街角与路旁。
-    const Vec3 kFlowerBeds[] = {{-1.2f, 1.1f, 0.0f}, {2.2f, 1.3f, 0.0f},  {-3.4f, -2.2f, 0.0f},
-                                {3.8f, -1.8f, 0.0f}, {0.4f, -2.6f, 0.0f}, {-5.6f, 0.6f, 0.0f},
+    // 花坛装饰（非障碍）：小圆簇，点缀街角与路旁（R10-17 避开道路）。
+    const Vec3 kFlowerBeds[] = {{-1.2f, 1.1f, 0.0f}, {2.2f, 1.3f, 0.0f},  {-4.6f, -1.2f, 0.0f},
+                                {3.2f, -1.3f, 0.0f}, {0.4f, -1.2f, 0.0f}, {-5.6f, 0.8f, 0.0f},
                                 {5.2f, 0.9f, 0.0f},  {-2.6f, -0.8f, 0.0f}};
     for (const auto& fb : kFlowerBeds) {
         const float fx = center_x + fb.x * scale;
@@ -818,10 +825,17 @@ void NpcAgentDemoNode::plan_paths_and_report() {
         const auto& intent = npc.agent->last_intent();
         if (intent.has_value() && std::holds_alternative<MoveIntent>(intent->payload)) {
             const auto& move = std::get<MoveIntent>(intent->payload);
-            const auto path =
-                find_path_avoiding(npc, npc.agent->body_state().position, move.target);
-            if (!path.empty())
+            const Vec3 from = npc.agent->body_state().position;
+            const auto path = find_path_avoiding(npc, from, move.target);
+
+            if (!path.empty()) {
                 npc.body.set_path(path, move.speed);
+            } else if (!npc.body.is_moving() &&
+                       grid_.world_to_cell(from) == grid_.world_to_cell(move.target)) {
+                // 路径为空且起点与目标同 cell（已就位，无需移动）：直接报告完成，
+                // 避免"目标点精确停在终点 cell 内时 move_done 永不触发"（R10-17）。
+                npc.agent->report_action_result(npc.body.last_move_handle(), "completed");
+            }
             update_path_visual(npc, path);
         } else {
             update_path_visual(npc, npc.body.is_moving() ? npc.body.path() : std::vector<Vec3>{});
